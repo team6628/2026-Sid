@@ -14,6 +14,9 @@ import edu.wpi.first.wpilibj2.command.sysid.SysIdRoutine.Direction;
 
 import frc.robot.generated.TunerConstants;
 import frc.robot.subsystems.CommandSwerveDrivetrain;
+import frc.robot.subsystems.Shooter;
+import frc.robot.commands.Intake;
+import frc.robot.commands.Outtake;
 
 public class RobotContainer {
 
@@ -32,6 +35,8 @@ public class RobotContainer {
    
 
     private final CommandJoystick joystick = new CommandJoystick(0);
+
+    private final Shooter shooter = new Shooter();
 
     public final CommandSwerveDrivetrain drivetrain = TunerConstants.createDrivetrain();
 
@@ -67,9 +72,9 @@ public class RobotContainer {
         joystick.button(8).and(joystick.button(3))
             .whileTrue(drivetrain.sysIdQuasistatic(Direction.kReverse));
 
-        // Reset heading (optional now, but keeping it)
-        joystick.button(5)
-            .onTrue(drivetrain.runOnce(drivetrain::seedFieldCentric));
+        //Button Bindings
+        joystick.button(1).whileTrue(new Outtake(shooter));
+        joystick.button(2).whileTrue(new Intake(shooter));
 
     }
 
