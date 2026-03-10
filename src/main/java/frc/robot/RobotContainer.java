@@ -67,7 +67,6 @@ public class RobotContainer {
 
     private void configureBindings() {
 
-        // Default drive command (Teleop)
         drivetrain.setDefaultCommand(
                 drivetrain.applyRequest(() ->
                         drive.withVelocityX(-joystick.getY() * MaxSpeed)
@@ -76,13 +75,11 @@ public class RobotContainer {
                 )
         );
 
-        // Idle while disabled
         RobotModeTriggers.disabled().whileTrue(
                 drivetrain.applyRequest(() -> new SwerveRequest.Idle())
                           .ignoringDisable(true)
         );
 
-        /* ===== SysId ===== */
         joystick.button(7).and(joystick.button(4))
                 .whileTrue(drivetrain.sysIdDynamic(Direction.kForward));
 
@@ -95,7 +92,6 @@ public class RobotContainer {
         joystick.button(8).and(joystick.button(3))
                 .whileTrue(drivetrain.sysIdQuasistatic(Direction.kReverse));
 
-        /* ===== Shooter ===== */
         joystick.button(2).whileTrue(outtake);
         joystick.button(1).whileTrue(intake);
     }
@@ -106,25 +102,20 @@ public class RobotContainer {
 
     private void configureAutos() {
 
-        /* ---- Register Named Commands (PathPlanner Events) ---- */
-        NamedCommands.registerCommand("Intake", intake);
-        NamedCommands.registerCommand("Outtake", outtake);
+        /* ---- Register Named Commands ---- */
+        NamedCommands.registerCommand("Intake", new Intake(shooter).withTimeout(4.0));
+        NamedCommands.registerCommand("Outtake", new Outtake(shooter).withTimeout(4.0));
 
         try {
             RobotConfig config = RobotConfig.fromGUISettings();
 
             AutoBuilder.configure(
-                    /* Pose Supplier */
                     () -> drivetrain.getState().Pose,
-
-                    /* Reset Odometry */
                     drivetrain::resetPose,
 
-                    /* Chassis Speeds Supplier (Robot Relative) */
                     () -> drivetrain.getKinematics()
                             .toChassisSpeeds(drivetrain.getState().ModuleStates),
 
-                    /* Output Consumer */
                     (speeds, feedforwards) ->
                             drivetrain.setControl(
                                     drive.withVelocityX(speeds.vxMetersPerSecond)
@@ -132,7 +123,6 @@ public class RobotContainer {
                                          .withRotationalRate(speeds.omegaRadiansPerSecond)
                             ),
 
-                    /* Path Following Controller */
                     new PPHolonomicDriveController(
                             new PIDConstants(5.0, 0.0, 0.0),
                             new PIDConstants(5.0, 0.0, 0.0)
@@ -140,7 +130,6 @@ public class RobotContainer {
 
                     config,
 
-                    /* Alliance Mirroring */
                     () -> DriverStation.getAlliance()
                             .map(a -> a == DriverStation.Alliance.Red)
                             .orElse(false),
@@ -152,12 +141,9 @@ public class RobotContainer {
             DriverStation.reportError("Failed to configure AutoBuilder", e.getStackTrace());
         }
 
-        /* ---- Build Auto Chooser ---- */
         autoChooser = AutoBuilder.buildAutoChooser();
         SmartDashboard.putData("Auto Chooser", autoChooser);
     }
-
-    /* ======================================================= */
 
     public Command getAutonomousCommand() {
         return autoChooser.getSelected();
