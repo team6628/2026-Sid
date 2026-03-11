@@ -23,12 +23,6 @@
           }
         },
         {
-          "type": "path",
-          "data": {
-            "pathName": "Right to Center - 3"
-          }
-        },
-        {
           "type": "parallel",
           "data": {
             "commands": [
@@ -36,6 +30,12 @@
                 "type": "named",
                 "data": {
                   "name": "Intake"
+                }
+              },
+              {
+                "type": "path",
+                "data": {
+                  "pathName": "Right to Center - 3"
                 }
               }
             ]
