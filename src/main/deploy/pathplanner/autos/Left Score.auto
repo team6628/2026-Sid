@@ -7,7 +7,7 @@
         {
           "type": "path",
           "data": {
-            "pathName": "Left to Center"
+            "pathName": "Score -1"
           }
         },
         {
@@ -19,7 +19,7 @@
         {
           "type": "path",
           "data": {
-            "pathName": "Left to Center - 2"
+            "pathName": "Left Score -2"
           }
         },
         {
@@ -35,7 +35,7 @@
               {
                 "type": "path",
                 "data": {
-                  "pathName": "Left to Center - 3"
+                  "pathName": "Left Score -3"
                 }
               }
             ]

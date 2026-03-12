@@ -26,6 +26,9 @@ import frc.robot.commands.Intake;
 import frc.robot.commands.Outtake;
 import frc.robot.commands.Dump;
 
+import edu.wpi.first.cscore.UsbCamera;
+import edu.wpi.first.cameraserver.CameraServer;
+
 public class RobotContainer {
 
     /* ===================== DRIVETRAIN ===================== */
@@ -61,8 +64,12 @@ public class RobotContainer {
     public RobotContainer() {
         configureBindings();
         configureAutos();
+         // Start USB camera
+        UsbCamera camera = CameraServer.startAutomaticCapture();
+        camera.setResolution(320, 240);
+        camera.setFPS(20);
     }
-
+    
     /* ======================================================= */
     /* ===================== BUTTON BINDINGS ================= */
     /* ======================================================= */
