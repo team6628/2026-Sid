@@ -24,6 +24,7 @@ import frc.robot.subsystems.CommandSwerveDrivetrain;
 import frc.robot.subsystems.Shooter;
 import frc.robot.commands.Intake;
 import frc.robot.commands.Outtake;
+import frc.robot.commands.Dump;
 
 public class RobotContainer {
 
@@ -51,6 +52,7 @@ public class RobotContainer {
     private final Shooter shooter = new Shooter();
     private final Intake intake = new Intake(shooter);
     private final Outtake outtake = new Outtake(shooter);
+    private final Dump dump = new Dump(shooter);
 
     /* ===================== AUTO ===================== */
 
@@ -92,8 +94,9 @@ public class RobotContainer {
         joystick.button(8).and(joystick.button(3))
                 .whileTrue(drivetrain.sysIdQuasistatic(Direction.kReverse));
 
-        joystick.button(2).whileTrue(outtake);
         joystick.button(1).whileTrue(intake);
+        joystick.button(2).whileTrue(outtake);
+        joystick.button(3).whileTrue(dump);
     }
 
     /* ======================================================= */

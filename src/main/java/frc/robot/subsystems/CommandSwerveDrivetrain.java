@@ -2,6 +2,7 @@ package frc.robot.subsystems;
 
 import java.util.function.Supplier;
 
+import edu.wpi.first.math.filter.SlewRateLimiter;
 import edu.wpi.first.math.geometry.Pose2d;
 import edu.wpi.first.math.geometry.Rotation2d;
 import edu.wpi.first.math.kinematics.ChassisSpeeds;
@@ -33,8 +34,17 @@ public class CommandSwerveDrivetrain
     private final SysIdRoutine m_sysIdRoutine;
 
     /* =========================
+       Acceleration Limiters
+       ========================= */
+
+    private final SlewRateLimiter xLimiter = new SlewRateLimiter(3.0);
+    private final SlewRateLimiter yLimiter = new SlewRateLimiter(3.0);
+    private final SlewRateLimiter rotLimiter = new SlewRateLimiter(4.0);
+
+    /* =========================
        Constructors
        ========================= */
+
     public CommandSwerveDrivetrain(
             SwerveDrivetrainConstants drivetrainConstants,
             SwerveModuleConstants<?, ?, ?>... modules) {
@@ -89,6 +99,7 @@ public class CommandSwerveDrivetrain
     /* =========================
        SYSID Commands
        ========================= */
+
     private SysIdRoutine createSysIdRoutine() {
         return new SysIdRoutine(
                 new SysIdRoutine.Config(
@@ -119,22 +130,31 @@ public class CommandSwerveDrivetrain
     /* =========================
        Robot-Centric Drive
        ========================= */
+
     public Command applyRobotCentric(
             Supplier<Double> xSpeed,
             Supplier<Double> ySpeed,
             Supplier<Double> rotSpeed) {
 
-        return run(() -> this.setControl(
-                new SwerveRequest.RobotCentric()
-                        .withVelocityX(xSpeed.get())
-                        .withVelocityY(ySpeed.get())
-                        .withRotationalRate(rotSpeed.get())
-        ));
+        return run(() -> {
+
+            double limitedX = xLimiter.calculate(xSpeed.get());
+            double limitedY = yLimiter.calculate(ySpeed.get());
+            double limitedRot = rotLimiter.calculate(rotSpeed.get());
+
+            this.setControl(
+                    new SwerveRequest.RobotCentric()
+                            .withVelocityX(limitedX)
+                            .withVelocityY(limitedY)
+                            .withRotationalRate(limitedRot)
+            );
+        });
     }
 
     /* =========================
        Gyro Seeding
        ========================= */
+
     public Command seedFieldCentricCommand() {
         return runOnce(() -> super.seedFieldCentric());
     }
@@ -146,6 +166,7 @@ public class CommandSwerveDrivetrain
     /* =========================
        Simulation Support
        ========================= */
+
     private void startSimThread() {
         m_lastSimTime = Utils.getCurrentTimeSeconds();
 
