@@ -25,6 +25,7 @@ import frc.robot.subsystems.Shooter;
 import frc.robot.commands.Intake;
 import frc.robot.commands.Outtake;
 import frc.robot.commands.Dump;
+import frc.robot.commands.Shake;
 
 import edu.wpi.first.cscore.UsbCamera;
 import edu.wpi.first.cameraserver.CameraServer;
@@ -37,12 +38,12 @@ public class RobotContainer {
             TunerConstants.kSpeedAt12Volts.in(MetersPerSecond);
 
     private final double MaxAngularRate =
-            RotationsPerSecond.of(0.75).in(RadiansPerSecond);
+            RotationsPerSecond.of(2.0).in(RadiansPerSecond);
 
     private final SwerveRequest.RobotCentric drive =
             new SwerveRequest.RobotCentric()
-                    .withDeadband(MaxSpeed * 0.1)
-                    .withRotationalDeadband(MaxAngularRate * 0.1)
+                    .withDeadband(MaxSpeed * 0.08)
+                    .withRotationalDeadband(MaxAngularRate * 0.08)
                     .withDriveRequestType(DriveRequestType.OpenLoopVoltage);
 
     private final CommandJoystick joystick = new CommandJoystick(0);
@@ -56,6 +57,7 @@ public class RobotContainer {
     private final Intake intake = new Intake(shooter);
     private final Outtake outtake = new Outtake(shooter);
     private final Dump dump = new Dump(shooter);
+    private final Shake shake = new Shake(drivetrain);
 
     /* ===================== AUTO ===================== */
 
@@ -64,10 +66,25 @@ public class RobotContainer {
     public RobotContainer() {
         configureBindings();
         configureAutos();
+
+    /*================== CAMERA =======================*/
          // Start USB camera
         UsbCamera camera = CameraServer.startAutomaticCapture();
         camera.setResolution(320, 240);
         camera.setFPS(20);
+
+    /*================== PRINT LOG ====================*/
+        new Thread(() -> {
+        while (true) {
+                SmartDashboard.putNumber("Battery Voltage", 
+                                        edu.wpi.first.wpilibj.RobotController.getBatteryVoltage());
+                try {
+                Thread.sleep(50); // update every 50 ms (~20 Hz)
+                } catch (InterruptedException e) {
+                e.printStackTrace();
+                }
+        }
+        }).start();
     }
     
     /* ======================================================= */
@@ -104,6 +121,7 @@ public class RobotContainer {
         joystick.button(1).whileTrue(intake);
         joystick.button(2).whileTrue(outtake);
         joystick.button(3).whileTrue(dump);
+        joystick.button(4).onTrue(shake);
     }
 
     /* ======================================================= */
@@ -115,6 +133,7 @@ public class RobotContainer {
         /* ---- Register Named Commands ---- */
         NamedCommands.registerCommand("Intake", new Intake(shooter).withTimeout(4.0));
         NamedCommands.registerCommand("Outtake", new Outtake(shooter).withTimeout(4.0));
+        NamedCommands.registerCommand("Shake", new Shake(drivetrain));
 
         try {
             RobotConfig config = RobotConfig.fromGUISettings();

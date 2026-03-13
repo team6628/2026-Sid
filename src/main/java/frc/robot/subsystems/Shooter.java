@@ -13,18 +13,24 @@ import com.revrobotics.spark.config.SparkMaxConfig;
 
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
 
+import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
+
 public class Shooter extends SubsystemBase {
 
-    private final SparkMax motorA;
-    private final SparkMax motorB;
+    public final SparkMax motorA;
+    public final SparkMax motorB;
 
     private final RelativeEncoder encoderA;
     private final RelativeEncoder encoderB;
 
-    private final SparkClosedLoopController controllerA;
-    private final SparkClosedLoopController controllerB;
+    public final SparkClosedLoopController controllerA;
+    public final SparkClosedLoopController controllerB;
 
-    private static final double SHOOT_RPM = 4000;
+    private static final double INTAKE_RPM_A = 4000;
+    private static final double INTAKE_RPM_B = 2000;
+
+    private static final double SHOOT_RPM_A = 4500;
+    private static final double SHOOT_RPM_B = 3000;
 
     @SuppressWarnings("removal")
     public Shooter() {
@@ -61,20 +67,20 @@ public class Shooter extends SubsystemBase {
 
     @SuppressWarnings("removal")
     public void intake() {
-        controllerA.setReference(SHOOT_RPM, ControlType.kVelocity);
-        controllerB.setReference(-SHOOT_RPM, ControlType.kVelocity);
+        controllerA.setReference(INTAKE_RPM_A, ControlType.kVelocity);
+        controllerB.setReference(-INTAKE_RPM_B, ControlType.kVelocity);
     }
 
     @SuppressWarnings("removal")
     public void outtake() {
-        controllerA.setReference(SHOOT_RPM, ControlType.kVelocity);
-        controllerB.setReference(SHOOT_RPM, ControlType.kVelocity);
+        controllerA.setReference(SHOOT_RPM_A, ControlType.kVelocity);
+        controllerB.setReference(SHOOT_RPM_B, ControlType.kVelocity);
     }
 
     @SuppressWarnings("removal")
     public void dump() {
-        controllerA.setReference(-SHOOT_RPM, ControlType.kVelocity);
-        controllerB.setReference(SHOOT_RPM, ControlType.kVelocity);
+        controllerA.setReference(-INTAKE_RPM_A, ControlType.kVelocity);
+        controllerB.setReference(INTAKE_RPM_B, ControlType.kVelocity);
     }
 
     public void stop() {
@@ -89,4 +95,12 @@ public class Shooter extends SubsystemBase {
     public double getMotorBRPM() {
         return encoderB.getVelocity();
     }
+
+    @Override
+    public void periodic() {
+        SmartDashboard.putNumber("Shooter Motor A RPM", getMotorARPM());
+        SmartDashboard.putNumber("Shooter Motor B RPM", getMotorBRPM());
+        SmartDashboard.putNumber("Shooter Target A", SHOOT_RPM_A);
+        SmartDashboard.putNumber("Shooter Target B", SHOOT_RPM_B);
+}
 }

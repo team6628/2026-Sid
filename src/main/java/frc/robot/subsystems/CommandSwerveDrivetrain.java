@@ -37,9 +37,9 @@ public class CommandSwerveDrivetrain
        Acceleration Limiters
        ========================= */
 
-    private final SlewRateLimiter xLimiter = new SlewRateLimiter(4.0);
-    private final SlewRateLimiter yLimiter = new SlewRateLimiter(4.0);
-    private final SlewRateLimiter rotLimiter = new SlewRateLimiter(6.0);
+    private final SlewRateLimiter xLimiter = new SlewRateLimiter(3);
+    private final SlewRateLimiter yLimiter = new SlewRateLimiter(3);
+    private final SlewRateLimiter rotLimiter = new SlewRateLimiter(4);
 
     /* =========================
        Constructors

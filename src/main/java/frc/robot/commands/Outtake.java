@@ -1,11 +1,14 @@
 package frc.robot.commands;
 
+import edu.wpi.first.wpilibj.Timer;
 import edu.wpi.first.wpilibj2.command.Command;
 import frc.robot.subsystems.Shooter;
 
 public class Outtake extends Command {
 
     private final Shooter shooter;
+    private final Timer timer = new Timer();
+    private boolean motorBStarted = false;
 
     public Outtake(Shooter subsystem) {
         shooter = subsystem;
@@ -14,21 +17,31 @@ public class Outtake extends Command {
 
     @Override
     public void initialize() {
-        shooter.outtake();
+        timer.reset();
+        timer.start();
+        motorBStarted = false;
+
+        // Start motor A immediately
+        shooter.controllerA.setReference(4500, com.revrobotics.spark.SparkBase.ControlType.kVelocity);
     }
 
     @Override
     public void execute() {
-        // Nothing required here
+        // Start motor B after 0.25 seconds
+        if (!motorBStarted && timer.hasElapsed(0.25)) {
+            shooter.controllerB.setReference(3000, com.revrobotics.spark.SparkBase.ControlType.kVelocity);
+            motorBStarted = true;
+        }
     }
 
     @Override
     public void end(boolean interrupted) {
         shooter.stop();
+        timer.stop();
     }
 
     @Override
     public boolean isFinished() {
-        return false; // Runs while held
+        return false; // runs while held
     }
 }
