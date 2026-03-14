@@ -6,12 +6,18 @@ import frc.robot.subsystems.CommandSwerveDrivetrain;
 import com.ctre.phoenix6.swerve.SwerveRequest;
 
 public class Shake extends Command {
+
     private final CommandSwerveDrivetrain drivetrain;
-    private int cycles = 0;
+    private final Timer timer = new Timer();
+    private final SwerveRequest.RobotCentric drive = new SwerveRequest.RobotCentric();
+
     private boolean direction = true;
-    private Timer timer = new Timer();
-    private final SwerveRequest.RobotCentric drive =
-        new SwerveRequest.RobotCentric();
+
+    // Adjustable parameters for shake strength
+    private static final double ROT_SPEED = 2.5;       // rad/s, rotational shake
+    private static final double TRANS_X_SPEED = 0.5;  // m/s, forward/backward
+    private static final double TRANS_Y_SPEED = 0.5;  // m/s, left/right
+    private static final double SWITCH_TIME = 0.12;   // seconds between flips
 
     public Shake(CommandSwerveDrivetrain drivetrain) {
         this.drivetrain = drivetrain;
@@ -20,40 +26,41 @@ public class Shake extends Command {
 
     @Override
     public void initialize() {
-        cycles = 0;
-        timer.reset();
-        timer.start();
+        direction = true;
+        timer.restart();
     }
 
     @Override
     public void execute() {
+        // Flip signs based on direction for back-and-forth shaking
+        double rot = direction ? ROT_SPEED : -ROT_SPEED;
+        double xVel = direction ? TRANS_X_SPEED : -TRANS_X_SPEED;
+        double yVel = direction ? TRANS_Y_SPEED : -TRANS_Y_SPEED;
 
-        double rot = direction ? 3.0 : -3.0;
-
-        drivetrain.setControl(drive
-                .withVelocityX(0)
-                .withVelocityY(0)
-                .withRotationalRate(rot)
+        drivetrain.setControl(
+            drive.withVelocityX(xVel)
+                 .withVelocityY(yVel)
+                 .withRotationalRate(rot)
         );
 
-        if (timer.hasElapsed(0.2)) {
-            direction = !direction;
-            cycles++;
-            timer.reset();
+        if (timer.hasElapsed(SWITCH_TIME)) {
+            direction = !direction; // flip direction
+            timer.restart();
         }
     }
 
     @Override
     public boolean isFinished() {
-        return cycles > 10;
+        return false; // runs while button is held
     }
 
     @Override
     public void end(boolean interrupted) {
+        // stop all motion when command ends
         drivetrain.setControl(
-    drive.withVelocityX(0)
-         .withVelocityY(0)
-         .withRotationalRate(0)
-);
+            drive.withVelocityX(0)
+                 .withVelocityY(0)
+                 .withRotationalRate(0)
+        );
     }
 }

@@ -15,6 +15,7 @@ public class Outtake extends Command {
         addRequirements(shooter);
     }
 
+    @SuppressWarnings("removal")
     @Override
     public void initialize() {
         timer.reset();
@@ -25,10 +26,11 @@ public class Outtake extends Command {
         shooter.controllerA.setReference(4500, com.revrobotics.spark.SparkBase.ControlType.kVelocity);
     }
 
+    @SuppressWarnings("removal")
     @Override
     public void execute() {
         // Start motor B after 0.25 seconds
-        if (!motorBStarted && timer.hasElapsed(0.25)) {
+        if (!motorBStarted && timer.hasElapsed(0.5)) {
             shooter.controllerB.setReference(3000, com.revrobotics.spark.SparkBase.ControlType.kVelocity);
             motorBStarted = true;
         }
