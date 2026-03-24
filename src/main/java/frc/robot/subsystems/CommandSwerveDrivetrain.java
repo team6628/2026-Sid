@@ -14,11 +14,14 @@ import edu.wpi.first.wpilibj2.command.sysid.SysIdRoutine;
 import edu.wpi.first.wpilibj.DriverStation;
 import edu.wpi.first.wpilibj.Notifier;
 import edu.wpi.first.wpilibj.RobotController;
+import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 
 import com.ctre.phoenix6.Utils;
 import com.ctre.phoenix6.swerve.SwerveDrivetrainConstants;
 import com.ctre.phoenix6.swerve.SwerveModuleConstants;
 import com.ctre.phoenix6.swerve.SwerveRequest;
+
+import frc.robot.generated.TunerConstants;
 
 import static edu.wpi.first.units.Units.*;
 
@@ -182,7 +185,34 @@ public class CommandSwerveDrivetrain
     }
 
     @Override
-    public void periodic() {
-        // Called by CommandScheduler
+public void periodic() {
+    var modules = this.getModules();
+
+    double wheelCircumference =
+        TunerConstants.kWheelRadius.in(Meters) * 2.0 * Math.PI;
+
+    for (int i = 0; i < modules.length; i++) {
+
+        var target = modules[i].getTargetState();
+        var actual = modules[i].getCurrentState();
+
+        // Convert m/s → RPM
+        double actualRPM = (actual.speedMetersPerSecond / wheelCircumference) * 60.0;
+
+        // Turn angles
+        double targetDeg = target.angle.getDegrees();
+        double actualDeg = actual.angle.getDegrees();
+
+        // Proper wrapped error
+        double errorDeg = target.angle.minus(actual.angle).getDegrees();
+
+        // Drive
+        SmartDashboard.putNumber("Swerve/Mod" + i + "/Drive Actual RPM", actualRPM);
+
+        // Turn
+        SmartDashboard.putNumber("Swerve/Mod" + i + "/Turn Target Deg", targetDeg);
+        SmartDashboard.putNumber("Swerve/Mod" + i + "/Turn Actual Deg", actualDeg);
+        SmartDashboard.putNumber("Swerve/Mod" + i + "/Turn Error Deg", errorDeg);
     }
+}
 }

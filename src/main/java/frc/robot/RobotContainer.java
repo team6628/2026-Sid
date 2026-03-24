@@ -30,6 +30,10 @@ import frc.robot.commands.Shake;
 import edu.wpi.first.cscore.UsbCamera;
 import edu.wpi.first.cameraserver.CameraServer;
 
+import edu.wpi.first.wpilibj.PowerDistribution;
+import edu.wpi.first.wpilibj.PowerDistribution.ModuleType;
+
+
 public class RobotContainer {
 
     /* ===================== DRIVETRAIN ===================== */
@@ -85,7 +89,16 @@ public class RobotContainer {
                 }
         }
         }).start();
+
+        PowerDistribution pdh = new PowerDistribution(1, ModuleType.kRev);
+        SmartDashboard.putNumber("PDH Voltage", pdh.getVoltage());
+        SmartDashboard.putNumber("PDH Current", pdh.getTotalCurrent());
+        for (int i = 0; i < pdh.getNumChannels(); i++) {
+        SmartDashboard.putNumber("PDH Current Ch " + i, pdh.getCurrent(i));
+        }
+
     }
+
     
     /* ======================================================= */
     /* ===================== BUTTON BINDINGS ================= */
@@ -121,7 +134,7 @@ public class RobotContainer {
         joystick.button(1).whileTrue(intake);
         joystick.button(2).whileTrue(outtake);
         joystick.button(3).whileTrue(dump);
-        joystick.button(2).whileTrue(shake);
+        joystick.button(4).whileTrue(shake);
     }
 
     /* ======================================================= */
