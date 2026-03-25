@@ -14,7 +14,6 @@ public class Shake extends Command {
     private boolean direction = true;
 
     // Adjustable parameters for shake strength
-    private static final double ROT_SPEED = 2.5;       // rad/s, rotational shake
     private static final double TRANS_X_SPEED = 0.5;  // m/s, forward/backward
     private static final double TRANS_Y_SPEED = 0.5;  // m/s, left/right
     private static final double SWITCH_TIME = 0.12;   // seconds between flips
@@ -33,14 +32,12 @@ public class Shake extends Command {
     @Override
     public void execute() {
         // Flip signs based on direction for back-and-forth shaking
-        double rot = direction ? ROT_SPEED : -ROT_SPEED;
         double xVel = direction ? TRANS_X_SPEED : -TRANS_X_SPEED;
         double yVel = direction ? TRANS_Y_SPEED : -TRANS_Y_SPEED;
 
         drivetrain.setControl(
             drive.withVelocityX(xVel)
                  .withVelocityY(yVel)
-                 .withRotationalRate(rot)
         );
 
         if (timer.hasElapsed(SWITCH_TIME)) {

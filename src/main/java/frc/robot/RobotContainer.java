@@ -90,11 +90,12 @@ public class RobotContainer {
         }
         }).start();
 
-        PowerDistribution pdh = new PowerDistribution(1, ModuleType.kRev);
-        SmartDashboard.putNumber("PDH Voltage", pdh.getVoltage());
-        SmartDashboard.putNumber("PDH Current", pdh.getTotalCurrent());
-        for (int i = 0; i < pdh.getNumChannels(); i++) {
-        SmartDashboard.putNumber("PDH Current Ch " + i, pdh.getCurrent(i));
+        try (PowerDistribution pdh = new PowerDistribution(1, ModuleType.kRev)) {
+                SmartDashboard.putNumber("PDH Voltage", pdh.getVoltage());
+                SmartDashboard.putNumber("PDH Current", pdh.getTotalCurrent());
+                for (int i = 0; i < pdh.getNumChannels(); i++) {
+                SmartDashboard.putNumber("PDH Current Ch " + i, pdh.getCurrent(i));
+                }
         }
 
     }
@@ -134,7 +135,7 @@ public class RobotContainer {
         joystick.button(1).whileTrue(intake);
         joystick.button(2).whileTrue(outtake);
         joystick.button(3).whileTrue(dump);
-        joystick.button(4).whileTrue(shake);
+        joystick.button(2).whileTrue(shake);
     }
 
     /* ======================================================= */

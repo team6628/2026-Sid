@@ -3,47 +3,51 @@ package frc.robot.commands;
 import edu.wpi.first.wpilibj.Timer;
 import edu.wpi.first.wpilibj2.command.Command;
 import frc.robot.subsystems.Shooter;
+import com.ctre.phoenix6.controls.VelocityDutyCycle;
+import com.revrobotics.spark.SparkBase.ControlType;
 
 public class Outtake extends Command {
 
     private final Shooter shooter;
     private final Timer timer = new Timer();
-    private boolean motorBStarted = false;
+    
+    private boolean feedersStarted = false;
 
     public Outtake(Shooter subsystem) {
         shooter = subsystem;
         addRequirements(shooter);
     }
 
-    @SuppressWarnings("removal")
     @Override
     public void initialize() {
         timer.reset();
         timer.start();
-        motorBStarted = false;
+        feedersStarted = false;
 
-        // Start motor A immediately
-        shooter.controllerA.setReference(4500, com.revrobotics.spark.SparkBase.ControlType.kVelocity);
+       
+        VelocityDutyCycle flywheelVelocity = new VelocityDutyCycle(75.0);
+        shooter.motorC.setControl(flywheelVelocity);
     }
 
-    @SuppressWarnings("removal")
     @Override
     public void execute() {
-        // Start motor B after 0.25 seconds
-        if (!motorBStarted && timer.hasElapsed(1)) {
-            shooter.controllerB.setReference(3000, com.revrobotics.spark.SparkBase.ControlType.kVelocity);
-            motorBStarted = true;
+        if (!feedersStarted && timer.hasElapsed(0.2)) {
+            // Using the RPM constants from your Shooter subsystem logic
+            shooter.controllerA.setSetpoint(-3000, ControlType.kVelocity);
+            shooter.controllerB.setSetpoint(3000, ControlType.kVelocity);
+            feedersStarted = true;
         }
     }
 
     @Override
     public void end(boolean interrupted) {
+        // Always shut everything down
         shooter.stop();
         timer.stop();
     }
 
     @Override
     public boolean isFinished() {
-        return false; // runs while held
+        return false; // Run while button is held
     }
 }

@@ -28,15 +28,14 @@ public class Shooter extends SubsystemBase {
     public final SparkClosedLoopController controllerB;
 
     // Kraken / TalonFX
-    private final TalonFX motorC = new TalonFX(11);
+    public TalonFX motorC = new TalonFX(11);
 
     // RPM targets
     private static final double INTAKE_RPM_A = 4000;
-    private static final double INTAKE_RPM_B = 2000;
-    private static final double INTAKE_RPM_C = 3000;
-    private static final double SHOOT_RPM_A = 4500;
+    private static final double INTAKE_RPM_B = 4000;
+    private static final double SHOOT_RPM_A = 3000;
     private static final double SHOOT_RPM_B = 3000;
-    private static final double SHOOT_RPM_C = 4500;
+    private static final double SHOOT_RPM_C = 3500;
 
     @SuppressWarnings("removal")
     public Shooter() {
@@ -63,45 +62,35 @@ public class Shooter extends SubsystemBase {
 
         // TalonFX / Kraken setup
         TalonFXConfiguration fxConfig = new TalonFXConfiguration();
+        fxConfig.MotorOutput.Inverted = com.ctre.phoenix6.signals.InvertedValue.Clockwise_Positive;
         fxConfig.Slot0.kP = 0.1;
         fxConfig.Slot0.kI = 0.0;
         fxConfig.Slot0.kD = 0.0;
         fxConfig.Slot0.kV = 0.12;
         motorC.getConfigurator().apply(fxConfig);
 
-        // STOP TalonFX at startup
-        motorC.setControl(new DutyCycleOut(0));
-
-        // STOP Sparks at startup
-        motorA.stopMotor();
-        motorB.stopMotor();
+        
     }
 
     // Intake
     public void intake() {
-        controllerA.setReference(INTAKE_RPM_A, ControlType.kVelocity);
-        controllerB.setReference(-INTAKE_RPM_B, ControlType.kVelocity);
-
-        VelocityDutyCycle velocityRequest = new VelocityDutyCycle(INTAKE_RPM_C / 60.0);
-        motorC.setControl(velocityRequest);
+        controllerA.setSetpoint(-INTAKE_RPM_A, ControlType.kVelocity);
+        controllerB.setSetpoint(-INTAKE_RPM_B, ControlType.kVelocity);
     }
 
     // Shoot
     public void outtake() {
-        controllerA.setReference(SHOOT_RPM_A, ControlType.kVelocity);
-        controllerB.setReference(SHOOT_RPM_B, ControlType.kVelocity);
+        controllerA.setSetpoint(-SHOOT_RPM_A, ControlType.kVelocity);
+        controllerB.setSetpoint(SHOOT_RPM_B, ControlType.kVelocity);
 
         VelocityDutyCycle velocityRequest = new VelocityDutyCycle(SHOOT_RPM_C / 60.0);
         motorC.setControl(velocityRequest);
     }
 
-    // Dump / reverse
+    // Dump
     public void dump() {
-        controllerA.setReference(-INTAKE_RPM_A, ControlType.kVelocity);
-        controllerB.setReference(INTAKE_RPM_B, ControlType.kVelocity);
-
-        VelocityDutyCycle velocityRequest = new VelocityDutyCycle(-INTAKE_RPM_C / 60.0);
-        motorC.setControl(velocityRequest);
+        controllerA.setSetpoint(INTAKE_RPM_A, ControlType.kVelocity);
+        controllerB.setSetpoint(INTAKE_RPM_B, ControlType.kVelocity);
     }
 
     // Stop all motors
