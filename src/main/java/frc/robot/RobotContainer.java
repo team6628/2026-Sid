@@ -28,6 +28,7 @@ import frc.robot.commands.Dump;
 import frc.robot.commands.Shake;
 
 import edu.wpi.first.cscore.UsbCamera;
+import edu.wpi.first.math.MathUtil;
 import edu.wpi.first.cameraserver.CameraServer;
 
 import edu.wpi.first.wpilibj.PowerDistribution;
@@ -114,7 +115,6 @@ public class RobotContainer {
                              .withRotationalRate(-joystick.getZ() * MaxAngularRate)
                 )
         );
-
         RobotModeTriggers.disabled().whileTrue(
                 drivetrain.applyRequest(() -> new SwerveRequest.Idle())
                           .ignoringDisable(true)

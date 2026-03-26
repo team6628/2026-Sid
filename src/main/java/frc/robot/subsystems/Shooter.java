@@ -16,6 +16,9 @@ import com.ctre.phoenix6.controls.VelocityDutyCycle;
 
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
+import edu.wpi.first.wpilibj.RobotController;
+import edu.wpi.first.math.interpolation.InterpolatingDoubleTreeMap;
+import edu.wpi.first.wpilibj.Timer;
 
 public class Shooter extends SubsystemBase {
 
@@ -27,20 +30,21 @@ public class Shooter extends SubsystemBase {
     public final SparkClosedLoopController controllerA;
     public final SparkClosedLoopController controllerB;
 
-    // Kraken / TalonFX
+    // Kraken
     public TalonFX motorC = new TalonFX(11);
 
-    // RPM targets
-    private static final double INTAKE_RPM_A = 4000;
-    private static final double INTAKE_RPM_B = 4000;
-    private static final double SHOOT_RPM_A = 3000;
-    private static final double SHOOT_RPM_B = 3000;
-    private static final double SHOOT_RPM_C = 3500;
+    // Interpolation map
+    private final InterpolatingDoubleTreeMap rpmMap = new InterpolatingDoubleTreeMap();
+
+    // Constants
+    private static final double RPM_TOLERANCE = 100;
+    private static final double RPM_DROP_THRESHOLD = 600;
+
+    private static final double FEED_RPM = 2000;
 
     @SuppressWarnings("removal")
     public Shooter() {
 
-        // Spark MAX setup
         motorA = new SparkMax(9, MotorType.kBrushless);
         motorB = new SparkMax(10, MotorType.kBrushless);
 
@@ -60,7 +64,7 @@ public class Shooter extends SubsystemBase {
         controllerA = motorA.getClosedLoopController();
         controllerB = motorB.getClosedLoopController();
 
-        // TalonFX / Kraken setup
+        // Kraken config
         TalonFXConfiguration fxConfig = new TalonFXConfiguration();
         fxConfig.MotorOutput.Inverted = com.ctre.phoenix6.signals.InvertedValue.Clockwise_Positive;
         fxConfig.Slot0.kP = 0.1;
@@ -69,38 +73,69 @@ public class Shooter extends SubsystemBase {
         fxConfig.Slot0.kV = 0.12;
         motorC.getConfigurator().apply(fxConfig);
 
-        
+        initMaps();
     }
 
-    // Intake
-    public void intake() {
-        controllerA.setSetpoint(-INTAKE_RPM_A, ControlType.kVelocity);
-        controllerB.setSetpoint(-INTAKE_RPM_B, ControlType.kVelocity);
+    private void initMaps() {
+        rpmMap.put(4.0, 4500.0);
+        rpmMap.put(6.0, 4000.0);
+        rpmMap.put(8.0, 3650.0);
     }
 
-    // Shoot
-    public void outtake() {
-        controllerA.setSetpoint(-SHOOT_RPM_A, ControlType.kVelocity);
-        controllerB.setSetpoint(SHOOT_RPM_B, ControlType.kVelocity);
+    // ========================
+    // RPM CONTROL
+    // ========================
+    public void setShooterRPM(double rpmA) {
+        double rpmB = rpmA; // adjust ratio if needed
+        double rpsC = rpmA / 60.0;
 
-        VelocityDutyCycle velocityRequest = new VelocityDutyCycle(SHOOT_RPM_C / 60.0);
-        motorC.setControl(velocityRequest);
+        controllerA.setReference(-rpmA, ControlType.kVelocity);
+        controllerB.setReference(rpmB, ControlType.kVelocity);
+
+        motorC.setControl(new VelocityDutyCycle(rpsC));
     }
 
-    // Dump
-    public void dump() {
-        controllerA.setSetpoint(INTAKE_RPM_A, ControlType.kVelocity);
-        controllerB.setSetpoint(INTAKE_RPM_B, ControlType.kVelocity);
-    }
-
-    // Stop all motors
     public void stop() {
         motorA.stopMotor();
         motorB.stopMotor();
         motorC.setControl(new DutyCycleOut(0));
     }
 
-    // Getters
+    // ========================
+    // CALCULATION
+    // ========================
+    public double getTargetRPM(double distance) {
+        double baseRPM = rpmMap.get(distance);
+        double voltage = RobotController.getBatteryVoltage();
+        return baseRPM * (12.0 / voltage);
+    }
+
+    // ========================
+    // FEED SYSTEM
+    // ========================
+    public void feed() {
+        controllerA.setReference(-FEED_RPM, ControlType.kVelocity);
+        controllerB.setReference(FEED_RPM, ControlType.kVelocity);
+    }
+
+    public void reverseFeed() {
+        controllerA.setReference(FEED_RPM, ControlType.kVelocity);
+        controllerB.setReference(-FEED_RPM, ControlType.kVelocity);
+    }
+
+    public void intake() {
+        controllerA.setReference(-4000, ControlType.kVelocity);
+        controllerB.setReference(-4000, ControlType.kVelocity);
+    }
+
+    public void dump() {
+        controllerA.setReference(4000, ControlType.kVelocity);
+        controllerB.setReference(4000, ControlType.kVelocity);
+    }
+
+    // ========================
+    // SENSORS
+    // ========================
     public double getMotorARPM() {
         return encoderA.getVelocity();
     }
@@ -109,18 +144,32 @@ public class Shooter extends SubsystemBase {
         return encoderB.getVelocity();
     }
 
-    public double getMotorCRPS() {
-        return motorC.getVelocity().getValueAsDouble();
+    // ========================
+    // LOGIC
+    // ========================
+    public boolean atSetpoint(double targetRPM) {
+        return Math.abs(getMotorARPM() - targetRPM) < RPM_TOLERANCE;
+    }
+
+    public boolean isStableAtSetpoint(double targetRPM, double time, Timer timer) {
+        if (atSetpoint(targetRPM)) {
+            return timer.hasElapsed(time);
+        } else {
+            timer.reset();
+            timer.start();
+            return false;
+        }
+    }
+
+    public boolean isJammed(double targetRPM) {
+        return getMotorARPM() < (targetRPM - RPM_DROP_THRESHOLD)
+            || getMotorBRPM() < (targetRPM - RPM_DROP_THRESHOLD);
     }
 
     @Override
     public void periodic() {
-        SmartDashboard.putNumber("Shooter Motor A RPM", getMotorARPM());
-        SmartDashboard.putNumber("Shooter Motor B RPM", getMotorBRPM());
-        SmartDashboard.putNumber("Shooter Motor C RPS", getMotorCRPS());
-
-        SmartDashboard.putNumber("Target A RPM", SHOOT_RPM_A);
-        SmartDashboard.putNumber("Target B RPM", SHOOT_RPM_B);
-        SmartDashboard.putNumber("Target C RPM", SHOOT_RPM_C);
+        SmartDashboard.putNumber("Motor A RPM", getMotorARPM());
+        SmartDashboard.putNumber("Motor B RPM", getMotorBRPM());
+        SmartDashboard.putNumber("Shot Distance", 6.0); //TODO: change to limelight
     }
 }

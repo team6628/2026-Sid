@@ -3,15 +3,18 @@ package frc.robot.commands;
 import edu.wpi.first.wpilibj.Timer;
 import edu.wpi.first.wpilibj2.command.Command;
 import frc.robot.subsystems.Shooter;
-import com.ctre.phoenix6.controls.VelocityDutyCycle;
-import com.revrobotics.spark.SparkBase.ControlType;
 
 public class Outtake extends Command {
 
     private final Shooter shooter;
-    private final Timer timer = new Timer();
-    
-    private boolean feedersStarted = false;
+
+    private final Timer spinupTimer = new Timer();
+    private final Timer jamTimer = new Timer();
+
+    private double targetRPM;
+
+    private boolean feeding = false;
+    private boolean clearingJam = false;
 
     public Outtake(Shooter subsystem) {
         shooter = subsystem;
@@ -20,34 +23,69 @@ public class Outtake extends Command {
 
     @Override
     public void initialize() {
-        timer.reset();
-        timer.start();
-        feedersStarted = false;
+        spinupTimer.reset();
+        spinupTimer.start();
 
-       
-        VelocityDutyCycle flywheelVelocity = new VelocityDutyCycle(75.0);
-        shooter.motorC.setControl(flywheelVelocity);
+        jamTimer.stop();
+        jamTimer.reset();
+
+        
+
+        feeding = false;
+        clearingJam = false;
+
+        double distance = edu.wpi.first.wpilibj.smartdashboard.SmartDashboard
+        .getNumber("Shot Distance", 6.0); // replace with Limelight
+        targetRPM = shooter.getTargetRPM(distance);
+
+        shooter.setShooterRPM(targetRPM);
     }
 
     @Override
     public void execute() {
-        if (!feedersStarted && timer.hasElapsed(0.2)) {
-            // Using the RPM constants from your Shooter subsystem logic
-            shooter.controllerA.setSetpoint(-3000, ControlType.kVelocity);
-            shooter.controllerB.setSetpoint(3000, ControlType.kVelocity);
-            feedersStarted = true;
+
+        // Wait for stable RPM
+        if (!feeding) {
+            if (shooter.isStableAtSetpoint(targetRPM, 0.15, spinupTimer)) {
+                feeding = true;
+            } else {
+                return;
+            }
+        }
+
+        // Jam clearing
+        if (clearingJam) {
+            if (jamTimer.hasElapsed(0.2)) {
+                clearingJam = false;
+                jamTimer.stop();
+            } else {
+                shooter.reverseFeed();
+                return;
+            }
+        }
+
+        // Feed
+        shooter.feed();
+
+        // Detect jam
+        if (shooter.isJammed(targetRPM)) {
+            clearingJam = true;
+            jamTimer.reset();
+            jamTimer.start();
         }
     }
 
     @Override
     public void end(boolean interrupted) {
-        // Always shut everything down
         shooter.stop();
-        timer.stop();
     }
 
     @Override
     public boolean isFinished() {
-        return false; // Run while button is held
+        return false;
+    }
+
+    private double getDistanceFeet() {
+        return 6.0; // TODO: replace with Limelight
     }
 }
