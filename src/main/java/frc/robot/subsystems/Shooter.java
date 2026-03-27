@@ -40,7 +40,7 @@ public class Shooter extends SubsystemBase {
     private static final double RPM_TOLERANCE = 100;
     private static final double RPM_DROP_THRESHOLD = 600;
 
-    private static final double FEED_RPM = 2000;
+    private static final double FEED_RPM = 3000;
 
     @SuppressWarnings("removal")
     public Shooter() {

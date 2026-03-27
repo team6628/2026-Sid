@@ -26,6 +26,7 @@ import frc.robot.commands.Intake;
 import frc.robot.commands.Outtake;
 import frc.robot.commands.Dump;
 import frc.robot.commands.Shake;
+import frc.robot.commands.Align;
 
 import edu.wpi.first.cscore.UsbCamera;
 import edu.wpi.first.math.MathUtil;
@@ -63,6 +64,7 @@ public class RobotContainer {
     private final Outtake outtake = new Outtake(shooter);
     private final Dump dump = new Dump(shooter);
     private final Shake shake = new Shake(drivetrain);
+    private final Align align = new Align(drivetrain, drive);
 
     /* ===================== AUTO ===================== */
 
@@ -136,6 +138,7 @@ public class RobotContainer {
         joystick.button(2).whileTrue(outtake);
         joystick.button(3).whileTrue(dump);
         joystick.button(2).whileTrue(shake);
+        joystick.button(2).whileTrue(align);
     }
 
     /* ======================================================= */
