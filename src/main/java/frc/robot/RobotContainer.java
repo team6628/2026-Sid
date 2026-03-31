@@ -118,7 +118,7 @@ public class RobotContainer {
                 )
         );
         RobotModeTriggers.disabled().whileTrue(
-                drivetrain.applyRequest(() -> new SwerveRequest.Idle())
+                drivetrain.applyRequest(SwerveRequest.Idle::new)
                           .ignoringDisable(true)
         );
 
@@ -151,6 +151,7 @@ public class RobotContainer {
         NamedCommands.registerCommand("Intake", new Intake(shooter).withTimeout(4.0));
         NamedCommands.registerCommand("Outtake", new Outtake(shooter).withTimeout(4.0));
         NamedCommands.registerCommand("Shake", new Shake(drivetrain).withTimeout(4.0));
+        NamedCommands.registerCommand("Align", new Align(drivetrain, drive).withTimeout(4.0));
 
         try {
             RobotConfig config = RobotConfig.fromGUISettings();

@@ -10,7 +10,7 @@ public class Align extends Command {
     private final CommandSwerveDrivetrain m_drivetrain;
     private final SwerveRequest.RobotCentric driveRequest;
 
-    private final double kP = 0.04; 
+    private final double kP = 0.04;
     private final double TOLERANCE = 1.5; // degrees tolerance for alignment
 
     public Align(CommandSwerveDrivetrain drivetrain, SwerveRequest.RobotCentric drive) {
@@ -21,9 +21,9 @@ public class Align extends Command {
 
     @Override
     public void execute() {
-        NetworkTable table = NetworkTableInstance.getDefault().getTable("limelight");
+        NetworkTable table = NetworkTableInstance.getDefault().getTable("Limelight_6628");
         double tid = table.getEntry("tid").getDouble(0.0); // tag ID (Limelight 3)
-        double tx  = table.getEntry("tl").getDouble(0.0);  // horizontal offset
+        double tx  = table.getEntry("tx").getDouble(0.0);  // horizontal offset (CORRECTED)
 
         boolean hasTarget = tid > 0;
 
@@ -34,13 +34,13 @@ public class Align extends Command {
             double rotationOutput = -tx * kP;
 
             m_drivetrain.applyRequest(() ->
-                driveRequest.withVelocityX(0)
+                    driveRequest.withVelocityX(0)
                             .withVelocityY(0)
                             .withRotationalRate(rotationOutput)
             );
         } else {
             m_drivetrain.applyRequest(() ->
-                driveRequest.withVelocityX(0)
+                    driveRequest.withVelocityX(0)
                             .withVelocityY(0)
                             .withRotationalRate(0)
             );
@@ -51,7 +51,7 @@ public class Align extends Command {
     public boolean isFinished() {
         NetworkTable table = NetworkTableInstance.getDefault().getTable("limelight");
         double tid = table.getEntry("tid").getDouble(0.0);
-        double tx  = table.getEntry("tl").getDouble(0.0);
+        double tx  = table.getEntry("tx").getDouble(0.0);
 
         return tid > 0 && Math.abs(tx) <= TOLERANCE;
     }
