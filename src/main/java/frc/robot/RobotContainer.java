@@ -137,7 +137,7 @@ public class RobotContainer {
         joystick.button(1).whileTrue(intake);
         joystick.button(2).whileTrue(outtake);
         joystick.button(3).whileTrue(dump);
-        joystick.button(2).whileTrue(shake);
+        joystick.button(4).whileTrue(shake);
         joystick.button(2).whileTrue(align);
     }
 
