@@ -14,6 +14,7 @@ import com.ctre.phoenix6.configs.TalonFXConfiguration;
 import com.ctre.phoenix6.controls.DutyCycleOut;
 import com.ctre.phoenix6.controls.VelocityDutyCycle;
 
+import edu.wpi.first.math.filter.SlewRateLimiter;
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 import edu.wpi.first.wpilibj.RobotController;
@@ -50,6 +51,13 @@ public class Shooter extends SubsystemBase {
     private final NetworkTableEntry taEntry;
     private final NetworkTableEntry tlEntry;
     private final NetworkTableEntry tidEntry;
+
+
+    //Acceleration limiter
+    SlewRateLimiter motorALimiter = new SlewRateLimiter(2000);
+    SlewRateLimiter motorBLimiter = new SlewRateLimiter(2000);
+    SlewRateLimiter motorCLimiter = new SlewRateLimiter(2000);
+
 
     public Shooter() {
         // REV Motors
@@ -97,9 +105,14 @@ public class Shooter extends SubsystemBase {
 
     // ======================== Motor Control ========================
     public void setShooterRPM(double rpm) {
-        controllerA.setReference(-rpm, ControlType.kVelocity);
-        controllerB.setReference(rpm, ControlType.kVelocity);
-        motorC.setControl(new VelocityDutyCycle(rpm / 60.0));
+
+        double filteredA = motorALimiter.calculate(-rpm);
+        double filteredB = motorBLimiter.calculate(rpm);
+        double filteredC = motorCLimiter.calculate(rpm);
+
+        controllerA.setReference(-filteredA, ControlType.kVelocity);
+        controllerB.setReference(filteredB, ControlType.kVelocity);
+        motorC.setControl(new VelocityDutyCycle(filteredC / 60.0));
     }
 
     public void stop() {
@@ -121,13 +134,13 @@ public class Shooter extends SubsystemBase {
 
     // ======================== Feed / Intake ========================
     public void intake() {
-        controllerA.setReference(-4000, ControlType.kVelocity);
-        controllerB.setReference(-4000, ControlType.kVelocity);
+        controllerA.setReference(motorALimiter.calculate(-4000), ControlType.kVelocity);
+        controllerB.setReference(motorBLimiter.calculate(-4000), ControlType.kVelocity);
     }
 
     public void dump() {
-        controllerA.setReference(4000, ControlType.kVelocity);
-        controllerB.setReference(4000, ControlType.kVelocity);
+        controllerA.setReference(motorALimiter.calculate(4000), ControlType.kVelocity);
+        controllerB.setReference(motorBLimiter.calculate(-4000), ControlType.kVelocity);
     }
 
     // ======================== Sensors / State ========================
