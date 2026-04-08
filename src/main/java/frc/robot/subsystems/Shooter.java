@@ -90,7 +90,7 @@ public class Shooter extends SubsystemBase {
         motorC.getConfigurator().apply(fxConfig);
 
         // Limelight
-        limelightTable = NetworkTableInstance.getDefault().getTable("Limelight_6628");
+        limelightTable = NetworkTableInstance.getDefault().getTable("limelight");
         txEntry = limelightTable.getEntry("tx");
         tyEntry = limelightTable.getEntry("ty");
         taEntry = limelightTable.getEntry("ta");

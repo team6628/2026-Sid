@@ -7,11 +7,12 @@ import frc.robot.subsystems.CommandSwerveDrivetrain;
 import com.ctre.phoenix6.swerve.SwerveRequest;
 
 public class Align extends Command {
+
     private final CommandSwerveDrivetrain m_drivetrain;
     private final SwerveRequest.RobotCentric driveRequest;
 
-    private final double kP = 0.04;
-    private final double TOLERANCE = 1.5; // degrees tolerance for alignment
+    private static final double kP = 0.04;
+    private static final double TOLERANCE = 1.5; // degrees tolerance for alignment
 
     public Align(CommandSwerveDrivetrain drivetrain, SwerveRequest.RobotCentric drive) {
         m_drivetrain = drivetrain;
@@ -21,38 +22,31 @@ public class Align extends Command {
 
     @Override
     public void execute() {
-        NetworkTable table = NetworkTableInstance.getDefault().getTable("Limelight_6628");
-        double tid = table.getEntry("tid").getDouble(0.0); // tag ID (Limelight 3)
-        double tx  = table.getEntry("tx").getDouble(0.0);  // horizontal offset (CORRECTED)
+        NetworkTable table = NetworkTableInstance.getDefault().getTable("limelight");
+        double tx = table.getEntry("tx").getDouble(0.0);  // horizontal offset
+        double tv = table.getEntry("tv").getDouble(0.0);  // target valid (1 if any target detected)
 
-        boolean hasTarget = tid > 0;
+        // Compute rotation inside a final variable to satisfy lambda
+        final double rotationOutput = (tv > 0 && Math.abs(tx) > TOLERANCE) ? -tx * kP : 0.0;
 
-        // Debug print
-        System.out.println("[Align] tid: " + tid + ", tx: " + tx);
+        // Debug info
+        System.out.println("[Align] tv: " + tv + ", tx: " + tx + ", rotationOutput: " + rotationOutput);
 
-        if (hasTarget && Math.abs(tx) > TOLERANCE) {
-            double rotationOutput = -tx * kP;
-
-            m_drivetrain.applyRequest(() ->
-                    driveRequest.withVelocityX(0)
-                            .withVelocityY(0)
-                            .withRotationalRate(rotationOutput)
-            );
-        } else {
-            m_drivetrain.applyRequest(() ->
-                    driveRequest.withVelocityX(0)
-                            .withVelocityY(0)
-                            .withRotationalRate(0)
-            );
-        }
+        // Apply rotation request with zero X/Y velocity
+        m_drivetrain.applyRequest(() ->
+                driveRequest.withVelocityX(0)
+                        .withVelocityY(0)
+                        .withRotationalRate(rotationOutput)
+        );
     }
 
     @Override
     public boolean isFinished() {
         NetworkTable table = NetworkTableInstance.getDefault().getTable("limelight");
-        double tid = table.getEntry("tid").getDouble(0.0);
-        double tx  = table.getEntry("tx").getDouble(0.0);
+        double tx = table.getEntry("tx").getDouble(0.0);
+        double tv = table.getEntry("tv").getDouble(0.0);
 
-        return tid > 0 && Math.abs(tx) <= TOLERANCE;
+        // Finish when target exists and horizontal error is within tolerance
+        return tv > 0 && Math.abs(tx) <= TOLERANCE;
     }
 }
