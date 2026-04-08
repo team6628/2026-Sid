@@ -20,6 +20,7 @@ import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 import edu.wpi.first.wpilibj.RobotController;
 import edu.wpi.first.math.interpolation.InterpolatingDoubleTreeMap;
 import edu.wpi.first.wpilibj.Timer;
+import edu.wpi.first.wpilibj.Joystick;
 
 import edu.wpi.first.networktables.NetworkTable;
 import edu.wpi.first.networktables.NetworkTableInstance;
@@ -51,13 +52,15 @@ public class Shooter extends SubsystemBase {
     private final NetworkTableEntry taEntry;
     private final NetworkTableEntry tlEntry;
     private final NetworkTableEntry tidEntry;
+    private final NetworkTableEntry tvEntry;
 
+    // ======================== Joystick for fallback ========================
+    private final Joystick driverJoystick = new Joystick(0); // adjust port as needed
 
-    //Acceleration limiter
-    SlewRateLimiter motorALimiter = new SlewRateLimiter(2000);
-    SlewRateLimiter motorBLimiter = new SlewRateLimiter(2000);
-    SlewRateLimiter motorCLimiter = new SlewRateLimiter(2000);
-
+    // ======================== Acceleration limiters ========================
+    private final SlewRateLimiter motorALimiter = new SlewRateLimiter(2000);
+    private final SlewRateLimiter motorBLimiter = new SlewRateLimiter(2000);
+    private final SlewRateLimiter motorCLimiter = new SlewRateLimiter(2000);
 
     public Shooter() {
         // REV Motors
@@ -90,12 +93,13 @@ public class Shooter extends SubsystemBase {
         motorC.getConfigurator().apply(fxConfig);
 
         // Limelight
-        limelightTable = NetworkTableInstance.getDefault().getTable("limelight");
+        limelightTable = NetworkTableInstance.getDefault().getTable("limelight"); // fixed table name
         txEntry = limelightTable.getEntry("tx");
         tyEntry = limelightTable.getEntry("ty");
         taEntry = limelightTable.getEntry("ta");
         tlEntry = limelightTable.getEntry("tl");
         tidEntry = limelightTable.getEntry("tid");
+        tvEntry = limelightTable.getEntry("tv");
 
         // RPM map
         rpmMap.put(4.0, 4500.0);
@@ -105,10 +109,9 @@ public class Shooter extends SubsystemBase {
 
     // ======================== Motor Control ========================
     public void setShooterRPM(double rpm) {
-
-        double filteredA = motorALimiter.calculate(-rpm);
-        double filteredB = motorBLimiter.calculate(rpm);
-        double filteredC = motorCLimiter.calculate(rpm);
+        final double filteredA = motorALimiter.calculate(-rpm);
+        final double filteredB = motorBLimiter.calculate(rpm);
+        final double filteredC = motorCLimiter.calculate(rpm);
 
         controllerA.setReference(-filteredA, ControlType.kVelocity);
         controllerB.setReference(filteredB, ControlType.kVelocity);
@@ -133,14 +136,14 @@ public class Shooter extends SubsystemBase {
     }
 
     // ======================== Feed / Intake ========================
-    public void intake() {
-        controllerA.setReference(motorALimiter.calculate(-4000), ControlType.kVelocity);
-        controllerB.setReference(motorBLimiter.calculate(-4000), ControlType.kVelocity);
+    public void intake(double target) {
+        controllerA.setReference(motorALimiter.calculate(-target), ControlType.kVelocity);
+        controllerB.setReference(motorBLimiter.calculate(-target), ControlType.kVelocity);
     }
 
-    public void dump() {
-        controllerA.setReference(motorALimiter.calculate(4000), ControlType.kVelocity);
-        controllerB.setReference(motorBLimiter.calculate(-4000), ControlType.kVelocity);
+    public void dump(double target) {
+        controllerA.setReference(motorALimiter.calculate(target), ControlType.kVelocity);
+        controllerB.setReference(motorBLimiter.calculate(-target), ControlType.kVelocity);
     }
 
     // ======================== Sensors / State ========================
@@ -164,15 +167,28 @@ public class Shooter extends SubsystemBase {
     }
 
     // ======================== Limelight Helpers ========================
-    public boolean hasTarget() { return tidEntry.getDouble(0.0) > 0; }
+    public boolean hasTarget() { return tvEntry.getDouble(0.0) > 0; }
     public double getTX() { return txEntry.getDouble(0.0); }
     public double getTY() { return tyEntry.getDouble(0.0); }
     public double getTA() { return taEntry.getDouble(0.0); }
     public double getTL() { return tlEntry.getDouble(0.0); }
 
-    // Calculate distance in feet from TY or fallback to TA
+    /**
+     * Maps the joystick slider to a fallback distance between 2 and 12 feet.
+     */
+    private double getFallbackDistanceFromSlider() {
+        double raw = driverJoystick.getThrottle(); // -1.0 (bottom) to 1.0 (top)
+        return 2.0 + ((raw + 1.0) / 2.0) * 10.0; // 2..12 ft
+    }
+
+    /**
+     * Returns the estimated distance to the target in feet.
+     * Uses Limelight TY first, then TA if TY=0, then slider fallback.
+     */
     public double getDistanceFeet() {
-        if (!hasTarget()) return 6.0; // fallback
+        if (!hasTarget()) {
+            return getFallbackDistanceFromSlider(); // No target: fallback
+        }
 
         double ty = getTY();
         if (ty != 0) {
@@ -183,10 +199,14 @@ public class Shooter extends SubsystemBase {
             return (targetHeightFeet - cameraHeightFeet) / Math.tan(angleRad);
         }
 
-        // Fallback using area
+        // TY=0: fallback using area
         double ta = getTA();
-        if (ta <= 0) return 6.0;
-        return Math.sqrt(1.0 / ta) * 2.0; // tune experimentally
+        if (ta <= 0) {
+            return getFallbackDistanceFromSlider();
+        }
+
+        // Area-based estimate
+        return Math.sqrt(1.0 / ta) * 2.0;
     }
 
     public double getTargetRPM(double distanceFeet) {
