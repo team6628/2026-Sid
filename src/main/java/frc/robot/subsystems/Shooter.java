@@ -108,7 +108,7 @@ public class Shooter extends SubsystemBase {
     public void setShooterRPM(double rpm) {
 
         double filteredA = motorALimiter.calculate(-rpm);
-        double filteredB = motorBLimiter.calculate(rpm);
+        double filteredB = motorBLimiter.calculate(-rpm);
         double filteredC = motorCLimiter.calculate(rpm);
 
         controllerA.setReference(-filteredA, ControlType.kVelocity);
@@ -124,23 +124,23 @@ public class Shooter extends SubsystemBase {
 
     // ======================== Feed Control ========================
     public void feed() {
-        controllerA.setReference(-FEED_RPM, ControlType.kVelocity);
+        controllerA.setReference(FEED_RPM, ControlType.kVelocity);
         controllerB.setReference(FEED_RPM, ControlType.kVelocity);
     }
 
     public void reverseFeed() {
-        controllerA.setReference(FEED_RPM, ControlType.kVelocity);
+        controllerA.setReference(-FEED_RPM, ControlType.kVelocity);
         controllerB.setReference(-FEED_RPM, ControlType.kVelocity);
     }
 
     // ======================== Feed / Intake ========================
     public void intake() {
-        controllerA.setReference(motorALimiter.calculate(-4000), ControlType.kVelocity);
-        controllerB.setReference(motorBLimiter.calculate(-4000), ControlType.kVelocity);
+        controllerA.setReference(motorALimiter.calculate(4000), ControlType.kVelocity);
+        controllerB.setReference(motorBLimiter.calculate(4000), ControlType.kVelocity);
     }
 
     public void dump() {
-        controllerA.setReference(motorALimiter.calculate(4000), ControlType.kVelocity);
+        controllerA.setReference(motorALimiter.calculate(-4000), ControlType.kVelocity);
         controllerB.setReference(motorBLimiter.calculate(-4000), ControlType.kVelocity);
     }
 
