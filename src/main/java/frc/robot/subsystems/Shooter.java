@@ -51,7 +51,7 @@ public class Shooter extends SubsystemBase {
     private final NetworkTableEntry taEntry;
     private final NetworkTableEntry tlEntry;
     private final NetworkTableEntry tidEntry;
-
+    private static final double LIMELIGHT_X_OFFSET_FEET = 0.9166666666666666666666;
 
     //Acceleration limiter
     SlewRateLimiter motorALimiter = new SlewRateLimiter(2000);
@@ -96,6 +96,7 @@ public class Shooter extends SubsystemBase {
         taEntry = limelightTable.getEntry("ta");
         tlEntry = limelightTable.getEntry("tl");
         tidEntry = limelightTable.getEntry("tid");
+        
 
         // RPM map
         rpmMap.put(4.0, 4500.0);
@@ -163,6 +164,20 @@ public class Shooter extends SubsystemBase {
                 getMotorBRPM() < (targetRPM - RPM_DROP_THRESHOLD);
     }
 
+    public double getCorrectedTX() {
+    double rawTx = getTX();
+    double distance = getDistanceFeet();
+
+    // Safety check
+    if (distance <= 0.1) return rawTx;
+
+    double correctionDeg = Math.toDegrees(
+        Math.atan(LIMELIGHT_X_OFFSET_FEET / distance)
+    );
+
+    return rawTx + correctionDeg;
+}
+
     // ======================== Limelight Helpers ========================
     public boolean hasTarget() { return tidEntry.getDouble(0.0) > 0; }
     public double getTX() { return txEntry.getDouble(0.0); }
@@ -207,5 +222,6 @@ public class Shooter extends SubsystemBase {
         SmartDashboard.putNumber("Limelight TX", getTX());
         SmartDashboard.putNumber("Limelight TY", getTY());
         SmartDashboard.putNumber("Limelight TL", getTL());
+        SmartDashboard.putNumber("Corrected TX", getCorrectedTX());
     }
 }

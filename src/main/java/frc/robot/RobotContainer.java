@@ -64,7 +64,7 @@ public class RobotContainer {
     private final Outtake outtake = new Outtake(shooter);
     private final Dump dump = new Dump(shooter);
     private final Shake shake = new Shake(drivetrain);
-    private final Align align = new Align(drivetrain, drive);
+    private final Align align = new Align(drivetrain, drive, shooter);
 
     /* ===================== AUTO ===================== */
 
@@ -137,8 +137,8 @@ public class RobotContainer {
         joystick.button(1).whileTrue(intake);
         joystick.button(2).whileTrue(outtake);
         joystick.button(3).whileTrue(dump);
-        joystick.button(4).whileTrue(shake);
-        joystick.button(2).whileTrue(align);
+        joystick.button(10).whileTrue(shake);
+        joystick.button(4).whileTrue(align);
     }
 
     /* ======================================================= */
@@ -151,7 +151,7 @@ public class RobotContainer {
         NamedCommands.registerCommand("Intake", new Intake(shooter).withTimeout(4.0));
         NamedCommands.registerCommand("Outtake", new Outtake(shooter).withTimeout(4.0));
         NamedCommands.registerCommand("Shake", new Shake(drivetrain).withTimeout(4.0));
-        NamedCommands.registerCommand("Align", new Align(drivetrain, drive).withTimeout(4.0));
+        NamedCommands.registerCommand("Align", new Align(drivetrain, drive, shooter).withTimeout(4.0));
 
         try {
             RobotConfig config = RobotConfig.fromGUISettings();
