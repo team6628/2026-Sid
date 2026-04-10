@@ -99,6 +99,21 @@ public class CommandSwerveDrivetrain
         return run(() -> this.setControl(requestSupplier.get()));
     }
 
+    public void stop() {
+    setControl(
+        new SwerveRequest.RobotCentric()
+            .withVelocityX(0)
+            .withVelocityY(0)
+            .withRotationalRate(0)
+    );
+    }
+
+    public void stopIfAutonomous() {
+    if (DriverStation.isAutonomous()) {
+        stop();
+    }
+    }
+
     /* =========================
        SYSID Commands
        ========================= */

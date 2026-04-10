@@ -42,6 +42,7 @@ public class Robot extends TimedRobot {
     // and running subsystem periodic() methods.  This must be called from the robot's periodic
     // block in order for anything in the Command-based framework to work.
     CommandScheduler.getInstance().run();
+    
   }
 
   /** This function is called once each time the robot enters Disabled mode. */
@@ -64,7 +65,11 @@ public class Robot extends TimedRobot {
 
   /** This function is called periodically during autonomous. */
   @Override
-  public void autonomousPeriodic() {}
+  public void autonomousPeriodic() {
+
+    CommandScheduler.getInstance().onCommandInitialize(cmd ->
+    System.out.println("START CMD: " + cmd.getName()));
+  }
 
   @Override
   public void teleopInit() {

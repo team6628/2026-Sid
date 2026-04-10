@@ -17,7 +17,6 @@ import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.Commands;
 import edu.wpi.first.wpilibj2.command.button.CommandJoystick;
-import edu.wpi.first.wpilibj2.command.button.RobotModeTriggers;
 import edu.wpi.first.wpilibj2.command.sysid.SysIdRoutine.Direction;
 
 import frc.robot.generated.TunerConstants;
@@ -31,9 +30,6 @@ import frc.robot.commands.Align;
 
 import edu.wpi.first.cscore.UsbCamera;
 import edu.wpi.first.cameraserver.CameraServer;
-
-import edu.wpi.first.wpilibj.PowerDistribution;
-import edu.wpi.first.wpilibj.PowerDistribution.ModuleType;
 
 public class RobotContainer {
 
@@ -60,7 +56,7 @@ public class RobotContainer {
 
     private final Shooter shooter = new Shooter();
     private final Intake intake = new Intake(shooter);
-    private final Outtake outtake = new Outtake(shooter);
+    private final Outtake outtake = new Outtake(shooter, drivetrain);
     private final Dump dump = new Dump(shooter);
     private final Shake shake = new Shake(drivetrain);
     private final Align align = new Align(drivetrain, shooter);
@@ -144,7 +140,7 @@ public class RobotContainer {
     private void configureAutos() {
 
         NamedCommands.registerCommand("Intake", new Intake(shooter).withTimeout(4.0));
-        NamedCommands.registerCommand("Outtake", new Outtake(shooter).withTimeout(4.0));
+        NamedCommands.registerCommand("Outtake", new Outtake(shooter, drivetrain).withTimeout(4.0));
         NamedCommands.registerCommand("Shake", new Shake(drivetrain).withTimeout(4.0));
         NamedCommands.registerCommand("Align", new Align(drivetrain, shooter).withTimeout(4.0));
 

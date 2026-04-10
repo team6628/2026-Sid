@@ -3,10 +3,13 @@ package frc.robot.commands;
 import edu.wpi.first.wpilibj.Timer;
 import edu.wpi.first.wpilibj2.command.Command;
 import frc.robot.subsystems.Shooter;
+import edu.wpi.first.wpilibj.DriverStation;
+import frc.robot.subsystems.CommandSwerveDrivetrain;
 
 public class Outtake extends Command {
 
     private final Shooter shooter;
+    private final CommandSwerveDrivetrain drivetrain;
     private final Timer spinupTimer = new Timer();
     private final Timer jamTimer = new Timer();
 
@@ -14,10 +17,12 @@ public class Outtake extends Command {
     private boolean feeding = false;
     private boolean clearingJam = false;
 
-    public Outtake(Shooter shooterSubsystem) {
-        shooter = shooterSubsystem;
-        addRequirements(shooter);
-    }
+    public Outtake(Shooter shooterSubsystem, CommandSwerveDrivetrain drivetrainSubsystem) {
+    shooter = shooterSubsystem;
+    drivetrain = drivetrainSubsystem;
+
+    addRequirements(shooter);
+}
 
     @Override
     public void initialize() {
@@ -27,6 +32,8 @@ public class Outtake extends Command {
         jamTimer.reset();
         clearingJam = false;
         feeding = false;
+
+        drivetrain.stopIfAutonomous();
     }
 
     @Override

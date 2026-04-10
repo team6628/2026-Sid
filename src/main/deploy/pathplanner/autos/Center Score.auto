@@ -14,12 +14,7 @@
           "type": "parallel",
           "data": {
             "commands": [
-              {
-                "type": "named",
-                "data": {
-                  "name": "Align"
-                }
-              },
+              
               {
                 "type": "named",
                 "data": {
