@@ -15,6 +15,7 @@ import edu.wpi.first.wpilibj.DriverStation;
 import edu.wpi.first.wpilibj.smartdashboard.SendableChooser;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 import edu.wpi.first.wpilibj2.command.Command;
+import edu.wpi.first.wpilibj2.command.Commands;
 import edu.wpi.first.wpilibj2.command.button.CommandJoystick;
 import edu.wpi.first.wpilibj2.command.button.RobotModeTriggers;
 import edu.wpi.first.wpilibj2.command.sysid.SysIdRoutine.Direction;
@@ -63,6 +64,7 @@ public class RobotContainer {
     private final Dump dump = new Dump(shooter);
     private final Shake shake = new Shake(drivetrain);
     private final Align align = new Align(drivetrain, shooter);
+    private boolean override = false;
 
     /* ===================== AUTO ===================== */
 
@@ -125,10 +127,14 @@ public class RobotContainer {
         /* ================= MECHANISMS ================= */
 
         joystick.button(1).whileTrue(intake);
-        joystick.button(2).whileTrue(outtake);
+        joystick.button(4).whileTrue(outtake);
         joystick.button(3).whileTrue(dump);
         joystick.button(10).whileTrue(shake);
-        joystick.button(4).whileTrue(align);
+        joystick.button(2).onTrue(
+        Commands.runOnce(() -> override = !override));
+        joystick.button(4)
+        .and(() -> override)
+        .whileTrue(align);
     }
 
     /* ======================================================= */

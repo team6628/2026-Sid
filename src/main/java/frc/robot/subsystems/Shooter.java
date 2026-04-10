@@ -99,9 +99,9 @@ public class Shooter extends SubsystemBase {
         
 
         // RPM map
-        rpmMap.put(4.0, 4500.0);
-        rpmMap.put(6.0, 4000.0);
-        rpmMap.put(8.0, 3650.0);
+        rpmMap.put(4.0, 3400.0);
+        rpmMap.put(6.0, 3750.0);
+        rpmMap.put(8.0, 4250.0);
     }
 
     // ======================== Motor Control ========================

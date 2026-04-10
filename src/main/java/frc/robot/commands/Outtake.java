@@ -38,7 +38,7 @@ public class Outtake extends Command {
 
         // ---------------- Wait for spinup ----------------
         if (!feeding) {
-            if (shooter.isStableAtSetpoint(targetRPM, 0.15, spinupTimer)) {
+            if (shooter.isStableAtSetpoint(targetRPM, 0.250, spinupTimer)) {
                 feeding = true;
             } else return; // wait for spinup
         }
