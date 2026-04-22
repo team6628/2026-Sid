@@ -1,5 +1,8 @@
 package frc.robot.subsystems;
 
+import edu.wpi.first.wpilibj.Timer;
+import frc.robot.LimelightHelpers;
+
 import com.revrobotics.RelativeEncoder;
 import com.revrobotics.spark.SparkMax;
 import com.revrobotics.spark.SparkLowLevel.MotorType;
@@ -11,23 +14,20 @@ import com.revrobotics.spark.config.SparkMaxConfig;
 
 import com.ctre.phoenix6.hardware.TalonFX;
 import com.ctre.phoenix6.configs.TalonFXConfiguration;
-import com.ctre.phoenix6.controls.DutyCycleOut;
 import com.ctre.phoenix6.controls.VelocityDutyCycle;
+import com.ctre.phoenix6.controls.DutyCycleOut;
 
 import edu.wpi.first.math.filter.SlewRateLimiter;
-import edu.wpi.first.wpilibj2.command.SubsystemBase;
-import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
-import edu.wpi.first.wpilibj.RobotController;
 import edu.wpi.first.math.interpolation.InterpolatingDoubleTreeMap;
-import edu.wpi.first.wpilibj.Timer;
+import edu.wpi.first.wpilibj.RobotController;
+import edu.wpi.first.wpilibj2.command.SubsystemBase;
 
-import edu.wpi.first.networktables.NetworkTable;
-import edu.wpi.first.networktables.NetworkTableInstance;
-import edu.wpi.first.networktables.NetworkTableEntry;
+// ===================== RIO LOGGING =====================
+import edu.wpi.first.wpilibj.DataLogManager;
 
 public class Shooter extends SubsystemBase {
 
-    // ======================== Motors ========================
+    // ===================== MOTORS =====================
     public final SparkMax motorA;
     public final SparkMax motorB;
     public final SparkClosedLoopController controllerA;
@@ -35,37 +35,43 @@ public class Shooter extends SubsystemBase {
     private final RelativeEncoder encoderA;
     private final RelativeEncoder encoderB;
 
-    public final TalonFX motorC = new TalonFX(11); // Kraken
+    public final TalonFX motorC = new TalonFX(11);
 
-    // ======================== Constants ========================
+    // ===================== STATE =====================
+    public enum ShooterState {
+        IDLE,
+        SHOOTING,
+        FEEDING,
+        INTAKING,
+        DUMPING
+    }
+
+    private ShooterState state = ShooterState.IDLE;
+
+    // ===================== CONSTANTS =====================
     private static final double RPM_TOLERANCE = 100;
     private static final double RPM_DROP_THRESHOLD = 600;
-    private static final double FEED_RPM = 3000;
+
+    private static final String LOG = "Shooter/";
 
     private final InterpolatingDoubleTreeMap rpmMap = new InterpolatingDoubleTreeMap();
 
-    // ======================== Limelight ========================
-    private final NetworkTable limelightTable;
-    private final NetworkTableEntry txEntry;
-    private final NetworkTableEntry tyEntry;
-    private final NetworkTableEntry taEntry;
-    private final NetworkTableEntry tlEntry;
-    private final NetworkTableEntry tidEntry;
-    private static final double LIMELIGHT_X_OFFSET_FEET = 0.9166666666666666666666;
+    // ===================== LIMITERS =====================
+    private final SlewRateLimiter aLimiter = new SlewRateLimiter(2000);
+    private final SlewRateLimiter bLimiter = new SlewRateLimiter(2000);
 
-    //Acceleration limiter
-    SlewRateLimiter motorALimiter = new SlewRateLimiter(2000);
-    SlewRateLimiter motorBLimiter = new SlewRateLimiter(2000);
-    SlewRateLimiter motorCLimiter = new SlewRateLimiter(2000);
+    // ===================== LIMELIGHT =====================
+    private static final String LIMELIGHT = "limelight";
 
-
+    // ===================== INIT =====================
     public Shooter() {
-        // REV Motors
+
         motorA = new SparkMax(9, MotorType.kBrushless);
         motorB = new SparkMax(10, MotorType.kBrushless);
 
         SparkMaxConfig configA = new SparkMaxConfig();
         SparkMaxConfig configB = new SparkMaxConfig();
+
         configB.inverted(true);
 
         configA.closedLoop.p(0.0002).i(0).d(0).velocityFF(0.00018);
@@ -80,148 +86,177 @@ public class Shooter extends SubsystemBase {
         controllerA = motorA.getClosedLoopController();
         controllerB = motorB.getClosedLoopController();
 
-        // Kraken TalonFX
-        TalonFXConfiguration fxConfig = new TalonFXConfiguration();
-        fxConfig.MotorOutput.Inverted = com.ctre.phoenix6.signals.InvertedValue.Clockwise_Positive;
-        fxConfig.Slot0.kP = 0.1;
-        fxConfig.Slot0.kI = 0.0;
-        fxConfig.Slot0.kD = 0.0;
-        fxConfig.Slot0.kV = 0.12;
-        motorC.getConfigurator().apply(fxConfig);
+        TalonFXConfiguration fx = new TalonFXConfiguration();
+        fx.Slot0.kP = 0.1;
+        fx.Slot0.kV = 0.12;
 
-        // Limelight
-        limelightTable = NetworkTableInstance.getDefault().getTable("limelight");
-        txEntry = limelightTable.getEntry("tx");
-        tyEntry = limelightTable.getEntry("ty");
-        taEntry = limelightTable.getEntry("ta");
-        tlEntry = limelightTable.getEntry("tl");
-        tidEntry = limelightTable.getEntry("tid");
-        
+        motorC.getConfigurator().apply(fx);
 
-        // RPM map
+        // RPM curve
         rpmMap.put(4.0, 3400.0);
         rpmMap.put(6.0, 3750.0);
         rpmMap.put(8.0, 4250.0);
     }
 
-    // ======================== Motor Control ========================
+    // ===================== CONTROL =====================
+
     public void setShooterRPM(double rpm) {
 
-        double filteredA = motorALimiter.calculate(-rpm);
-        double filteredB = motorBLimiter.calculate(-rpm);
-        double filteredC = motorCLimiter.calculate(rpm);
+        state = ShooterState.SHOOTING;
 
-        controllerA.setReference(-filteredA, ControlType.kVelocity);
-        controllerB.setReference(filteredB, ControlType.kVelocity);
-        motorC.setControl(new VelocityDutyCycle(filteredC / 60.0));
+        double batteryComp = 12.0 / RobotController.getBatteryVoltage();
+        double target = rpm * batteryComp;
+
+        controllerA.setReference(-target, ControlType.kVelocity);
+        controllerB.setReference(target, ControlType.kVelocity);
+
+        motorC.setControl(new VelocityDutyCycle(target / 60.0));
+
+        log("CommandRPM", rpm);
+        log("BatteryComp", batteryComp);
     }
 
     public void stop() {
+        state = ShooterState.IDLE;
+
         motorA.stopMotor();
         motorB.stopMotor();
         motorC.setControl(new DutyCycleOut(0));
+
+        log("Stopped", 1);
     }
 
-    // ======================== Feed Control ========================
+    // ===================== MODES =====================
+
     public void feed() {
-        controllerA.setReference(FEED_RPM, ControlType.kVelocity);
-        controllerB.setReference(FEED_RPM, ControlType.kVelocity);
+        state = ShooterState.FEEDING;
+
+        controllerA.setReference(3000, ControlType.kVelocity);
+        controllerB.setReference(3000, ControlType.kVelocity);
+
+        log("Mode", "FEED");
     }
 
-    public void reverseFeed() {
-        controllerA.setReference(-FEED_RPM, ControlType.kVelocity);
-        controllerB.setReference(-FEED_RPM, ControlType.kVelocity);
-    }
-
-    // ======================== Feed / Intake ========================
     public void intake() {
-        controllerA.setReference(motorALimiter.calculate(4000), ControlType.kVelocity);
-        controllerB.setReference(motorBLimiter.calculate(4000), ControlType.kVelocity);
+        state = ShooterState.INTAKING;
+
+        controllerA.setReference(4000, ControlType.kVelocity);
+        controllerB.setReference(4000, ControlType.kVelocity);
+
+        log("Mode", "INTAKE");
     }
 
     public void dump() {
-        controllerA.setReference(motorALimiter.calculate(-4000), ControlType.kVelocity);
-        controllerB.setReference(motorBLimiter.calculate(-4000), ControlType.kVelocity);
+        state = ShooterState.DUMPING;
+
+        controllerA.setReference(-4000, ControlType.kVelocity);
+        controllerB.setReference(-4000, ControlType.kVelocity);
+
+        log("Mode", "DUMP");
     }
 
-    // ======================== Sensors / State ========================
-    public double getMotorARPM() { return encoderA.getVelocity(); }
-    public double getMotorBRPM() { return encoderB.getVelocity(); }
+    public boolean isStableAtSetpoint(double targetRPM, double toleranceSamples, Timer spinupTimer) {
 
-    public boolean atSetpoint(double targetRPM) {
-        return Math.abs(getMotorARPM() - targetRPM) < RPM_TOLERANCE;
-    }
+        double error = Math.abs(getMotorARPM() - targetRPM);
 
-    public boolean isStableAtSetpoint(double targetRPM, double time, Timer timer) {
-        if (atSetpoint(targetRPM)) return timer.hasElapsed(time);
-        timer.reset();
-        timer.start();
+        if (error < RPM_TOLERANCE) {
+            return true; // already stable
+        }
+
         return false;
     }
 
-    public boolean isJammed(double targetRPM) {
-        return getMotorARPM() < (targetRPM - RPM_DROP_THRESHOLD) ||
-                getMotorBRPM() < (targetRPM - RPM_DROP_THRESHOLD);
+    // ===================== SENSORS =====================
+
+    public double getMotorARPM() {
+        return encoderA.getVelocity();
     }
 
-    public double getCorrectedTX() {
-    double rawTx = getTX();
-    double distance = getDistanceFeet();
+    public double getMotorBRPM() {
+        return encoderB.getVelocity();
+    }
 
-    // Safety check
-    if (distance <= 0.1) return rawTx;
+    public boolean atSetpoint(double target) {
+        return Math.abs(getMotorARPM() - target) < RPM_TOLERANCE;
+    }
 
-    double correctionDeg = Math.toDegrees(
-        Math.atan(LIMELIGHT_X_OFFSET_FEET / distance)
-    );
+    public boolean isJammed(double target) {
+        return getMotorARPM() < (target - RPM_DROP_THRESHOLD);
+    }
 
-    return rawTx + correctionDeg;
-}
+    // ===================== LIMELIGHT =====================
 
-    // ======================== Limelight Helpers ========================
-    public boolean hasTarget() { return tidEntry.getDouble(0.0) > 0; }
-    public double getTX() { return txEntry.getDouble(0.0); }
-    public double getTY() { return tyEntry.getDouble(0.0); }
-    public double getTA() { return taEntry.getDouble(0.0); }
-    public double getTL() { return tlEntry.getDouble(0.0); }
+    public boolean hasTarget() {
+        return LimelightHelpers.getTV(LIMELIGHT);
+    }
 
-    // Calculate distance in feet from TY or fallback to TA
+    public double getTX() {
+        return LimelightHelpers.getTX(LIMELIGHT);
+    }
+
+    public double getTY() {
+        return LimelightHelpers.getTY(LIMELIGHT);
+    }
+
+    public LimelightHelpers.PoseEstimate getPose() {
+        return LimelightHelpers.getBotPoseEstimate_wpiBlue(LIMELIGHT);
+    }
+
+    // ===================== DISTANCE =====================
+
     public double getDistanceFeet() {
-        if (!hasTarget()) return 6.0; // fallback
 
-        double ty = getTY();
-        if (ty != 0) {
-            double cameraAngleDeg = 25.0;
-            double cameraHeightFeet = 0.5833;
-            double targetHeightFeet = 6.5;
-            double angleRad = Math.toRadians(cameraAngleDeg + ty);
-            return (targetHeightFeet - cameraHeightFeet) / Math.tan(angleRad);
+        var est = getPose();
+
+        if (est == null || est.tagCount == 0) {
+            log("Vision", "NO_TAG");
+            return 6.0;
         }
 
-        // Fallback using area
-        double ta = getTA();
-        if (ta <= 0) return 6.0;
-        return Math.sqrt(1.0 / ta) * 2.0; // tune experimentally
+        double dx = est.pose.getX();
+        double dy = est.pose.getY();
+
+        double dist = Math.hypot(dx, dy);
+
+        log("Distance", dist);
+
+        return dist;
     }
 
     public double getTargetRPM(double distanceFeet) {
-        double baseRPM = rpmMap.get(distanceFeet);
-        double voltage = RobotController.getBatteryVoltage();
-        return baseRPM * (12.0 / voltage);
+        double base = rpmMap.get(distanceFeet);
+        double comp = base * (12.0 / RobotController.getBatteryVoltage());
+
+        log("TargetRPM", comp);
+
+        return comp;
     }
+
+    // ===================== RIO LOGGING =====================
+
+    private void log(String key, Object value) {
+        DataLogManager.log(LOG + key + "=" + value);
+    }
+
+    // ===================== PERIODIC =====================
 
     @Override
     public void periodic() {
-        double distance = getDistanceFeet();
-        double targetRPM = getTargetRPM(distance);
 
-        SmartDashboard.putNumber("Motor A RPM", getMotorARPM());
-        SmartDashboard.putNumber("Motor B RPM", getMotorBRPM());
-        SmartDashboard.putNumber("Target RPM", targetRPM);
-        SmartDashboard.putNumber("Shot Distance", distance);
-        SmartDashboard.putNumber("Limelight TX", getTX());
-        SmartDashboard.putNumber("Limelight TY", getTY());
-        SmartDashboard.putNumber("Limelight TL", getTL());
-        SmartDashboard.putNumber("Corrected TX", getCorrectedTX());
+        double distance = getDistanceFeet();
+        double target = getTargetRPM(distance);
+
+        double a = getMotorARPM();
+        double b = getMotorBRPM();
+
+        log("State", state.name());
+        log("MotorA", a);
+        log("MotorB", b);
+        log("ErrorA", target - a);
+        log("ErrorB", target - b);
+
+        log("HasTarget", hasTarget());
+        log("TX", getTX());
+        log("TY", getTY());
     }
 }

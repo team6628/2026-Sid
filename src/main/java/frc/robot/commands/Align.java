@@ -1,105 +1,150 @@
 package frc.robot.commands;
 
 import edu.wpi.first.wpilibj2.command.Command;
-import edu.wpi.first.networktables.NetworkTable;
-import edu.wpi.first.networktables.NetworkTableInstance;
+import frc.robot.LimelightHelpers;
 import frc.robot.subsystems.CommandSwerveDrivetrain;
 import frc.robot.subsystems.Shooter;
 
 import com.ctre.phoenix6.swerve.SwerveRequest;
 import com.ctre.phoenix6.swerve.SwerveModule.DriveRequestType;
 
+import edu.wpi.first.math.geometry.Pose2d;
+import edu.wpi.first.math.geometry.Rotation2d;
+import edu.wpi.first.math.geometry.Translation2d;
+
 public class Align extends Command {
 
-    private final CommandSwerveDrivetrain m_drivetrain;
+    private final CommandSwerveDrivetrain drivetrain;
     private final Shooter shooter;
-    
-    // Private request with 0 deadband. 
-    // Switched to OpenLoopVoltage to avoid Licensing errors from your logs.
-    private final SwerveRequest.RobotCentric visionRequest = new SwerveRequest.RobotCentric()
-        .withDeadband(0)
-        .withRotationalDeadband(0)
-        .withDriveRequestType(DriveRequestType.OpenLoopVoltage);
 
-    private static final double kP = -0.04;
-    private static final double kStatic = 0.05; 
-    private static final double MAX_SPEED = 0.6; // % power (0.0 to 1.0)
-    private static final double TOLERANCE = 1.2; 
-    private static final double SEARCH_SPEED = 0.3; // % power
+    private final SwerveRequest.RobotCentric request =
+            new SwerveRequest.RobotCentric()
+                    .withDeadband(0)
+                    .withRotationalDeadband(0)
+                    .withDriveRequestType(DriveRequestType.OpenLoopVoltage);
 
-    private int lostTargetCounter = 0;
-    private final int WAIT_THRESHOLD = 25; // 500ms
+    // ===================== TARGET CONFIG =====================
+    // Set this to your HUB position on the field
+    // (YOU MUST ADJUST THIS FOR YOUR FIELD)
+    private static final Pose2d HUB_POSE = new Pose2d(
+            8.0,   // X meters (example)
+            4.0,   // Y meters (example)
+            new Rotation2d(0)
+    );
 
-    public Align(CommandSwerveDrivetrain drivetrain, Shooter shooterSubsystem) {
-        m_drivetrain = drivetrain;
-        shooter = shooterSubsystem;
-        addRequirements(m_drivetrain);
+    // ===================== CONTROL CONSTANTS =====================
+    private static final double kP = 3.0;
+    private static final double MAX_ROT_SPEED = 2.5; // rad/s clamp
+
+    private static final String LIMELIGHT = "limelight";
+
+    public Align(CommandSwerveDrivetrain drivetrain, Shooter shooter) {
+        this.drivetrain = drivetrain;
+        this.shooter = shooter;
+        addRequirements(drivetrain);
     }
 
     @Override
     public void initialize() {
-        lostTargetCounter = 0;
-        System.out.println("[Align] STARTING");
+        System.out.println("[ALIGN] Starting botPose alignment");
     }
 
     @Override
-public void execute() {
-    NetworkTable table = NetworkTableInstance.getDefault().getTable("limelight");
-    double tv = table.getEntry("tv").getDouble(0.0);
-    boolean hasTarget = (tv > 0);
-    
-    double tx = shooter.getCorrectedTX();
-    double rotationOutput = 0;
+    public void execute() {
 
-    if (hasTarget) {
-        lostTargetCounter = 0;
-        if (Math.abs(tx) > TOLERANCE) {
-            // Logic: (tx * kP) + Feedforward
-            rotationOutput = (tx * kP) + (Math.signum(tx) * kStatic);
+        // ===================== GET ROBOT POSE =====================
+        Pose2d robotPose =
+                LimelightHelpers.getBotPoseEstimate_wpiBlue(LIMELIGHT).pose;
+
+        boolean valid = LimelightHelpers.getTV(LIMELIGHT);
+
+        if (!valid || robotPose == null) {
+            System.out.println("[ALIGN] No vision target - holding");
+            drivetrain.setControl(
+                    request.withVelocityX(0)
+                            .withVelocityY(0)
+                            .withRotationalRate(0)
+            );
+            return;
         }
-    } else {
-        lostTargetCounter++;
-        if (lostTargetCounter >= WAIT_THRESHOLD) {
-            rotationOutput = SEARCH_SPEED;
-            System.out.println(">>> [STATE] SEARCHING (Speed: " + SEARCH_SPEED + ")");
-        } else {
-            rotationOutput = 0;
-            System.out.println(">>> [STATE] WAITING FOR TARGET (" + lostTargetCounter + "/" + WAIT_THRESHOLD + ")");
-        }
-    }
 
-    // Clamp Output
-    rotationOutput = Math.max(-MAX_SPEED, Math.min(MAX_SPEED, rotationOutput));
+        // ===================== VECTOR TO HUB =====================
+        Translation2d robotPos = robotPose.getTranslation();
+        Translation2d hubPos = HUB_POSE.getTranslation();
 
-    // --- DIAGNOSTIC LOGS ---
-    System.out.print("V: " + (hasTarget ? "FOUND" : "LOST") + " | tx: " + String.format("%.2f", tx));
-    
+        Translation2d delta = hubPos.minus(robotPos);
 
-    System.out.print(" | Calc Out: " + String.format("%.3f", rotationOutput));
+        // Desired angle to hub
+        double desiredAngle =
+                Math.atan2(delta.getY(), delta.getX());
 
-    // Apply the control
-   m_drivetrain.setControl(
-    visionRequest
-        .withVelocityX(0)
-        .withVelocityY(0)
-        .withRotationalRate(rotationOutput * 12.0) // Apply the 12x multiplier here
-);
+        double currentAngle =
+                robotPose.getRotation().getRadians();
 
+        // Angular error
+        double error = normalizeAngle(desiredAngle - currentAngle);
 
-    System.out.println(" | Req RotRate: " + String.format("%.3f", visionRequest.RotationalRate));
-}
+        // Control output
+        double output = kP * error;
 
-    @Override
-    public boolean isFinished() {
-        NetworkTable table = NetworkTableInstance.getDefault().getTable("limelight");
-        double tv = table.getEntry("tv").getDouble(0.0);
-        double tx = shooter.getCorrectedTX();
-        return tv > 0 && Math.abs(tx) <= TOLERANCE;
+        // Clamp
+        output = Math.max(-MAX_ROT_SPEED, Math.min(MAX_ROT_SPEED, output));
+
+        // ===================== APPLY CONTROL =====================
+        drivetrain.setControl(
+                request.withVelocityX(0)
+                        .withVelocityY(0)
+                        .withRotationalRate(output)
+        );
+
+        // ===================== DEBUG =====================
+        System.out.println(
+                "[ALIGN] err(rad)=" + error +
+                        " out=" + output +
+                        " robot=(" + robotPos.getX() + "," + robotPos.getY() + ")"
+        );
     }
 
     @Override
     public void end(boolean interrupted) {
-        m_drivetrain.setControl(visionRequest.withRotationalRate(0));
-        System.out.println("[Align] ENDED. Interrupted: " + interrupted);
+        drivetrain.setControl(
+                request.withVelocityX(0)
+                        .withVelocityY(0)
+                        .withRotationalRate(0)
+        );
+
+        System.out.println("[ALIGN] Ended interrupted=" + interrupted);
+    }
+
+    @Override
+    public boolean isFinished() {
+
+        Pose2d robotPose =
+                LimelightHelpers.getBotPoseEstimate_wpiBlue(LIMELIGHT).pose;
+
+        if (robotPose == null) return false;
+
+        Translation2d robotPos = robotPose.getTranslation();
+        Translation2d hubPos = HUB_POSE.getTranslation();
+
+        Translation2d delta = hubPos.minus(robotPos);
+
+        double desiredAngle =
+                Math.atan2(delta.getY(), delta.getX());
+
+        double currentAngle =
+                robotPose.getRotation().getRadians();
+
+        double error = normalizeAngle(desiredAngle - currentAngle);
+
+        return Math.abs(error) < 0.05; // ~3 degrees
+    }
+
+    // ===================== UTIL =====================
+
+    private double normalizeAngle(double angle) {
+        while (angle > Math.PI) angle -= 2 * Math.PI;
+        while (angle < -Math.PI) angle += 2 * Math.PI;
+        return angle;
     }
 }

@@ -2,6 +2,7 @@ package frc.robot.subsystems;
 
 import java.util.function.Supplier;
 
+import edu.wpi.first.math.VecBuilder;
 import edu.wpi.first.math.filter.SlewRateLimiter;
 import edu.wpi.first.math.geometry.Pose2d;
 import edu.wpi.first.math.geometry.Rotation2d;
@@ -29,55 +30,62 @@ public class CommandSwerveDrivetrain
         extends frc.robot.generated.TunerConstants.TunerSwerveDrivetrain
         implements Subsystem {
 
+    private final Vision vision;
+
     private static final double kSimLoopPeriod = 0.005;
+    private Notifier simNotifier = null;
+    private double lastSimTime;
 
-    private Notifier m_simNotifier = null;
-    private double m_lastSimTime;
-
-    private final SysIdRoutine m_sysIdRoutine;
-
-    /* =========================
-       Acceleration Limiters
-       ========================= */
+    private final SysIdRoutine sysIdRoutine;
 
     private final SlewRateLimiter xLimiter = new SlewRateLimiter(3);
     private final SlewRateLimiter yLimiter = new SlewRateLimiter(3);
     private final SlewRateLimiter rotLimiter = new SlewRateLimiter(4);
 
-    /* =========================
-       Constructors
-       ========================= */
+    /* ========================================================= */
+    /* ===================== CONSTRUCTORS ====================== */
+    /* ========================================================= */
 
+    // REQUIRED by CTRE + AutoBuilder (DO NOT REMOVE)
     public CommandSwerveDrivetrain(
             SwerveDrivetrainConstants drivetrainConstants,
             SwerveModuleConstants<?, ?, ?>... modules) {
 
         super(drivetrainConstants, modules);
 
-        m_sysIdRoutine = createSysIdRoutine();
+        this.vision = null;
+
+        this.sysIdRoutine = createSysIdRoutine();
 
         if (Utils.isSimulation()) {
             startSimThread();
         }
     }
 
+    // Vision-enabled constructor (used in RobotContainer)
     public CommandSwerveDrivetrain(
             SwerveDrivetrainConstants drivetrainConstants,
-            double odometryUpdateFrequency,
+            Vision vision,
             SwerveModuleConstants<?, ?, ?>... modules) {
 
-        super(drivetrainConstants, odometryUpdateFrequency, modules);
+        super(drivetrainConstants, modules);
 
-        m_sysIdRoutine = createSysIdRoutine();
+        this.vision = vision;
+
+        this.sysIdRoutine = createSysIdRoutine();
+
+        this.setVisionMeasurementStdDevs(
+                VecBuilder.fill(0.7, 0.7, Math.toRadians(10))
+        );
 
         if (Utils.isSimulation()) {
             startSimThread();
         }
     }
 
-    /* =========================
-       Helper Methods
-       ========================= */
+    /* ========================================================= */
+    /* ===================== CORE METHODS ====================== */
+    /* ========================================================= */
 
     public Pose2d getPose() {
         return getState().Pose;
@@ -91,43 +99,35 @@ public class CommandSwerveDrivetrain
         return getState().Speeds;
     }
 
-    public void driveRobotRelative(ChassisSpeeds speeds) {
-        // Implement drive output if needed
-    }
-
     public Command applyRequest(Supplier<SwerveRequest> requestSupplier) {
-        return run(() -> this.setControl(requestSupplier.get()));
+        return run(() -> setControl(requestSupplier.get()));
     }
 
     public void stop() {
-    setControl(
-        new SwerveRequest.RobotCentric()
-            .withVelocityX(0)
-            .withVelocityY(0)
-            .withRotationalRate(0)
-    );
+        setControl(
+                new SwerveRequest.RobotCentric()
+                        .withVelocityX(0)
+                        .withVelocityY(0)
+                        .withRotationalRate(0)
+        );
     }
 
     public void stopIfAutonomous() {
-    if (DriverStation.isAutonomous()) {
-        stop();
-    }
+        if (DriverStation.isAutonomous()) {
+            stop();
+        }
     }
 
-    /* =========================
-       SYSID Commands
-       ========================= */
+    /* ========================================================= */
+    /* ===================== SYSID ============================= */
+    /* ========================================================= */
 
     private SysIdRoutine createSysIdRoutine() {
         return new SysIdRoutine(
-                new SysIdRoutine.Config(
-                        null,
-                        Volts.of(4),
-                        null,
-                        (state) -> DriverStation.isAutonomous()
-                ),
+                new SysIdRoutine.Config(null, Volts.of(4), null,
+                        state -> DriverStation.isAutonomous()),
                 new SysIdRoutine.Mechanism(
-                        (volts) -> this.setControl(
+                        volts -> setControl(
                                 new SwerveRequest.SysIdSwerveTranslation()
                                         .withVolts(volts)
                         ),
@@ -137,17 +137,17 @@ public class CommandSwerveDrivetrain
         );
     }
 
-    public Command sysIdQuasistatic(SysIdRoutine.Direction direction) {
-        return m_sysIdRoutine.quasistatic(direction);
-    }
-
     public Command sysIdDynamic(SysIdRoutine.Direction direction) {
-        return m_sysIdRoutine.dynamic(direction);
+        return sysIdRoutine.dynamic(direction);
     }
 
-    /* =========================
-       Robot-Centric Drive
-       ========================= */
+    public Command sysIdQuasistatic(SysIdRoutine.Direction direction) {
+        return sysIdRoutine.quasistatic(direction);
+    }
+
+    /* ========================================================= */
+    /* ===================== DRIVE CONTROL ===================== */
+    /* ========================================================= */
 
     public Command applyRobotCentric(
             Supplier<Double> xSpeed,
@@ -156,78 +156,83 @@ public class CommandSwerveDrivetrain
 
         return run(() -> {
 
-            double limitedX = xLimiter.calculate(xSpeed.get());
-            double limitedY = yLimiter.calculate(ySpeed.get());
-            double limitedRot = rotLimiter.calculate(rotSpeed.get());
-
-            this.setControl(
+            setControl(
                     new SwerveRequest.RobotCentric()
-                            .withVelocityX(limitedX)
-                            .withVelocityY(limitedY)
-                            .withRotationalRate(limitedRot)
+                            .withVelocityX(xLimiter.calculate(xSpeed.get()))
+                            .withVelocityY(yLimiter.calculate(ySpeed.get()))
+                            .withRotationalRate(rotLimiter.calculate(rotSpeed.get()))
             );
         });
     }
 
-    /* =========================
-       Gyro Seeding
-       ========================= */
-
-    public Command seedFieldCentricCommand() {
-        return runOnce(() -> super.seedFieldCentric());
-    }
-
-    public Command seedFieldCentricCommand(Rotation2d rotation) {
-        return runOnce(() -> super.seedFieldCentric(rotation));
-    }
-
-    /* =========================
-       Simulation Support
-       ========================= */
-
-    private void startSimThread() {
-        m_lastSimTime = Utils.getCurrentTimeSeconds();
-
-        m_simNotifier = new Notifier(() -> {
-            double currentTime = Utils.getCurrentTimeSeconds();
-            double deltaTime = currentTime - m_lastSimTime;
-            m_lastSimTime = currentTime;
-
-            updateSimState(deltaTime, RobotController.getBatteryVoltage());
-        });
-
-        m_simNotifier.startPeriodic(kSimLoopPeriod);
-    }
+    /* ========================================================= */
+    /* ===================== VISION FUSION ===================== */
+    /* ========================================================= */
 
     @Override
-public void periodic() {
-    var modules = this.getModules();
+    public void periodic() {
 
-    double wheelCircumference =
-        TunerConstants.kWheelRadius.in(Meters) * 2.0 * Math.PI;
+        // ===== Vision integration =====
+        if (vision != null && vision.hasTarget()) {
 
-    for (int i = 0; i < modules.length; i++) {
+            var estimate = vision.getPoseEstimate();
 
-        var target = modules[i].getTargetState();
-        var actual = modules[i].getCurrentState();
+            if (estimate.tagCount > 0) {
 
-        // Convert m/s → RPM
-        double actualRPM = (actual.speedMetersPerSecond / wheelCircumference) * 60.0;
+                if (estimate.tagCount >= 2 || estimate.avgTagDist < 4.0) {
 
-        // Turn angles
-        double targetDeg = target.angle.getDegrees();
-        double actualDeg = actual.angle.getDegrees();
+                    addVisionMeasurement(
+                            estimate.pose,
+                            estimate.timestampSeconds
+                    );
+                }
+            }
 
-        // Proper wrapped error
-        double errorDeg = target.angle.minus(actual.angle).getDegrees();
+            SmartDashboard.putNumber("Vision/TagCount", estimate.tagCount);
+            SmartDashboard.putNumber("Vision/AvgDist", estimate.avgTagDist);
+        }
 
-        // Drive
-        SmartDashboard.putNumber("Swerve/Mod" + i + "/Drive Actual RPM", actualRPM);
+        SmartDashboard.putBoolean(
+                "Vision/HasTarget",
+                vision != null && vision.hasTarget()
+        );
 
-        // Turn
-        SmartDashboard.putNumber("Swerve/Mod" + i + "/Turn Target Deg", targetDeg);
-        SmartDashboard.putNumber("Swerve/Mod" + i + "/Turn Actual Deg", actualDeg);
-        SmartDashboard.putNumber("Swerve/Mod" + i + "/Turn Error Deg", errorDeg);
+        // ===== Module debug =====
+        var modules = getModules();
+
+        double wheelCircumference =
+                TunerConstants.kWheelRadius.in(Meters) * 2.0 * Math.PI;
+
+        for (int i = 0; i < modules.length; i++) {
+
+            var target = modules[i].getTargetState();
+            var actual = modules[i].getCurrentState();
+
+            double actualRPM =
+                    (actual.speedMetersPerSecond / wheelCircumference) * 60.0;
+
+            SmartDashboard.putNumber("Swerve/Mod" + i + "/DriveRPM", actualRPM);
+            SmartDashboard.putNumber("Swerve/Mod" + i + "/TargetDeg", target.angle.getDegrees());
+            SmartDashboard.putNumber("Swerve/Mod" + i + "/ActualDeg", actual.angle.getDegrees());
+        }
     }
-}
+
+    /* ========================================================= */
+    /* ===================== SIM SUPPORT ======================= */
+    /* ========================================================= */
+
+    private void startSimThread() {
+
+        lastSimTime = Utils.getCurrentTimeSeconds();
+
+        simNotifier = new Notifier(() -> {
+            double now = Utils.getCurrentTimeSeconds();
+            double dt = now - lastSimTime;
+            lastSimTime = now;
+
+            updateSimState(dt, RobotController.getBatteryVoltage());
+        });
+
+        simNotifier.startPeriodic(kSimLoopPeriod);
+    }
 }

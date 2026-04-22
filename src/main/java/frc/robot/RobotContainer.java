@@ -21,6 +21,7 @@ import edu.wpi.first.wpilibj2.command.sysid.SysIdRoutine.Direction;
 
 import frc.robot.generated.TunerConstants;
 import frc.robot.subsystems.CommandSwerveDrivetrain;
+import frc.robot.subsystems.Vision;
 import frc.robot.subsystems.Shooter;
 import frc.robot.commands.Intake;
 import frc.robot.commands.Outtake;
@@ -49,10 +50,21 @@ public class RobotContainer {
 
     private final CommandJoystick joystick = new CommandJoystick(0);
 
-    public final CommandSwerveDrivetrain drivetrain =
-            TunerConstants.createDrivetrain();
-
     /* ===================== SUBSYSTEMS ===================== */
+
+    // ✅ Vision FIRST
+    private final Vision vision = new Vision();
+
+    // ✅ Manual drivetrain construction (FIXED)
+    public final CommandSwerveDrivetrain drivetrain =
+            new CommandSwerveDrivetrain(
+                    TunerConstants.DrivetrainConstants,
+                    vision,
+                    TunerConstants.FrontLeft,
+                    TunerConstants.FrontRight,
+                    TunerConstants.BackLeft,
+                    TunerConstants.BackRight
+            );
 
     private final Shooter shooter = new Shooter();
     private final Intake intake = new Intake(shooter);
@@ -60,6 +72,7 @@ public class RobotContainer {
     private final Dump dump = new Dump(shooter);
     private final Shake shake = new Shake(drivetrain);
     private final Align align = new Align(drivetrain, shooter);
+
     private boolean override = false;
 
     /* ===================== AUTO ===================== */
@@ -70,12 +83,12 @@ public class RobotContainer {
         configureBindings();
         configureAutos();
 
-        /*================== CAMERA =======================*/
+        /* ================== CAMERA ================== */
         UsbCamera camera = CameraServer.startAutomaticCapture();
         camera.setResolution(320, 240);
         camera.setFPS(20);
 
-        /*================== PRINT LOG ====================*/
+        /* ================== BATTERY LOG ================== */
         new Thread(() -> {
             while (true) {
                 SmartDashboard.putNumber("Battery Voltage",
@@ -95,16 +108,13 @@ public class RobotContainer {
 
     private void configureBindings() {
 
-        // Default command
         drivetrain.setDefaultCommand(
                 drivetrain.applyRequest(() ->
                         drive.withVelocityX(-joystick.getY() * MaxSpeed)
-                             .withVelocityY(-joystick.getX() * MaxSpeed)
-                             .withRotationalRate(-joystick.getZ() * MaxAngularRate)
+                                .withVelocityY(-joystick.getX() * MaxSpeed)
+                                .withRotationalRate(-joystick.getZ() * MaxAngularRate)
                 )
         );
-
-        // RobotModeTriggers.disabled().whileTrue(...)
 
         /* ================= SYSID ================= */
 
@@ -126,11 +136,13 @@ public class RobotContainer {
         joystick.button(4).whileTrue(outtake);
         joystick.button(3).whileTrue(dump);
         joystick.button(10).whileTrue(shake);
+
         joystick.button(2).onTrue(
-        Commands.runOnce(() -> override = !override));
+                Commands.runOnce(() -> override = !override));
+
         joystick.button(4)
-        .and(() -> override)
-        .whileTrue(align);
+                .and(() -> override)
+                .whileTrue(align);
     }
 
     /* ======================================================= */
@@ -139,10 +151,10 @@ public class RobotContainer {
 
     private void configureAutos() {
 
-        NamedCommands.registerCommand("Intake", new Intake(shooter).withTimeout(4.0));
-        NamedCommands.registerCommand("Outtake", new Outtake(shooter, drivetrain).withTimeout(4.0));
-        NamedCommands.registerCommand("Shake", new Shake(drivetrain).withTimeout(4.0));
-        NamedCommands.registerCommand("Align", new Align(drivetrain, shooter).withTimeout(4.0));
+        NamedCommands.registerCommand("Intake", intake.withTimeout(4.0));
+        NamedCommands.registerCommand("Outtake", outtake.withTimeout(4.0));
+        NamedCommands.registerCommand("Shake", shake.withTimeout(4.0));
+        NamedCommands.registerCommand("Align", align.withTimeout(4.0));
 
         try {
             RobotConfig config = RobotConfig.fromGUISettings();
@@ -157,8 +169,8 @@ public class RobotContainer {
                     (speeds, feedforwards) ->
                             drivetrain.setControl(
                                     drive.withVelocityX(speeds.vxMetersPerSecond)
-                                         .withVelocityY(speeds.vyMetersPerSecond)
-                                         .withRotationalRate(speeds.omegaRadiansPerSecond)
+                                            .withVelocityY(speeds.vyMetersPerSecond)
+                                            .withRotationalRate(speeds.omegaRadiansPerSecond)
                             ),
 
                     new PPHolonomicDriveController(

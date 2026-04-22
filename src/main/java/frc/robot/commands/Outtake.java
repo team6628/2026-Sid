@@ -56,7 +56,7 @@ public class Outtake extends Command {
                 clearingJam = false;
                 jamTimer.stop();
             } else {
-                shooter.reverseFeed();
+                shooter.intake();
                 return;
             }
         }
